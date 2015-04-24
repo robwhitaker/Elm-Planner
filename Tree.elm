@@ -1,7 +1,6 @@
 module Tree where
 
 import List
-import Maybe
 
 type Tree a = Empty | Node a (List (Tree a)) Int
 
@@ -32,10 +31,7 @@ addChild : Tree a -> Tree a -> Tree a
 addChild child (Node pVal pChildren id) = Node pVal (pChildren ++ [child]) id
 
 size : Tree a -> Int
-size tree = case tree of
-    Empty -> 0
-    (Node _ [] _) -> 1
-    (Node _ children  _) -> 1 + (List.sum <| List.map size children)
+size tree = fold (\node acc -> acc + 1) 0 tree
 
 depth : Tree a -> Int
 depth tree = case tree of
@@ -43,10 +39,16 @@ depth tree = case tree of
     (Node _ children _) -> 1 + (List.foldl max 0 <| List.map depth children)
 
 nextId : Tree a -> Int
-nextId root = let
-    maxId : Tree a -> Int
-    maxId root = case root of
-        Empty -> 0
-        (Node _ [] id) -> id
-        (Node _ children id) -> max id <| List.foldl max 0 <| List.map maxId children
-    in maxId root + 1
+nextId root = 1 + fold (\(Node _ _ id) acc -> if id > acc then id else acc) -1 root
+
+flatten : Tree a -> List (Tree a)
+flatten tree = case tree of
+    Empty -> []
+    (Node _ [] _) -> [tree]
+    (Node _ children _) -> [tree] ++ (List.concat <| List.map flatten children)
+
+fold : (Tree a -> b -> b) -> b -> Tree a -> b
+fold f acc tree = case tree of
+    Empty               -> acc
+    (Node _ [] _)       -> f tree acc
+    (Node _ children _) -> List.foldl f acc (flatten tree)
