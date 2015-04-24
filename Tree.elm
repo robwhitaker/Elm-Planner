@@ -52,3 +52,6 @@ fold f acc tree = case tree of
     Empty               -> acc
     (Node _ [] _)       -> f tree acc
     (Node _ children _) -> List.foldl f acc (flatten tree)
+
+nodeById : Int -> Tree a -> Maybe (Tree a)
+nodeById id tree = List.head <| List.filter (\(Node _ _ id') -> id == id') <| flatten tree
