@@ -1,8 +1,11 @@
 module Tree where
 
 import List
+import Utils
 
 type Tree a = Empty | Node a (List (Tree a)) Int
+type ShiftDirection = Up | Down
+type NodeMovement = ShiftUp | ShiftDown | Lift | Lower
 
 empty : Tree a
 empty = Empty
@@ -43,8 +46,8 @@ nextId root = 1 + fold (\(Node _ _ id) acc -> if id > acc then id else acc) -1 r
 
 flatten : Tree a -> List (Tree a)
 flatten tree = case tree of
-    Empty -> []
-    (Node _ [] _) -> [tree]
+    Empty               -> []
+    (Node _ [] _)       -> [tree]
     (Node _ children _) -> [tree] ++ (List.concat <| List.map flatten children)
 
 fold : (Tree a -> b -> b) -> b -> Tree a -> b
@@ -55,3 +58,66 @@ fold f acc tree = case tree of
 
 nodeById : Int -> Tree a -> Maybe (Tree a)
 nodeById id tree = List.head <| List.filter (\(Node _ _ id') -> id == id') <| flatten tree
+
+addChildTo : Tree a -> Tree a -> Tree a -> Tree a
+addChildTo parent child root = 
+    if parent == root 
+    then addChild child parent
+    else Node (value root) (List.map (addChildTo parent child) (children root)) (id root)
+
+removeNode : Tree a -> Tree a -> Tree a
+removeNode node root = 
+    if List.member node (children root) 
+    then Node (value root) (List.filter ((/=) node) (children root)) (id root)
+    else Node (value root) (List.map (removeNode node) (children root)) (id root) 
+
+shiftNode : ShiftDirection -> Tree a -> Tree a -> Tree a
+shiftNode dir node root = 
+    if List.member node (children root)
+    then let
+        offset = if dir == Up then -1 else 1
+        indexedChildren = List.indexedMap (,) (children root)
+        targetNode = Maybe.withDefault (-1, node) <| List.head <| List.filter ((==) node << snd) indexedChildren
+        newChildren = (List.map snd << 
+                       List.sortBy fst << 
+                       List.map (\node' -> if node' == targetNode then (fst node' + offset, snd node') else node') <<
+                       List.map (\(index, node') -> if index == (fst targetNode + offset) then (index-offset,node') else (index,node'))) indexedChildren
+        in Node (value root) newChildren (id root)
+    else Node (value root) (List.map (shiftNode dir node) (children root)) (id root)
+
+liftNode : Tree a -> Tree a -> Tree a
+liftNode node root = let
+    grandparent = root
+    parents = children grandparent
+    kids = List.map children parents
+    parentsAndKids = List.map2 (,) parents kids
+    parent = List.head <| List.map fst <| List.filter (snd >> List.member node) parentsAndKids
+    in case parent of
+        Just p  -> Node (value grandparent) 
+                        ((Utils.takeWhile ((/=) p) parents) ++ [removeNode node p, node] ++ (List.drop 1 <| Utils.dropWhile ((/=) p) parents))
+                        (id grandparent)
+        Nothing -> Node (value root) (List.map (liftNode node) (children root)) (id root)
+
+lowerNode : Tree a -> Tree a -> Tree a
+lowerNode node root = 
+    if List.member node (children root)
+    then let
+        nodePosition = (List.length (children root)) - (List.length <| Utils.dropWhile ((/=) node) (children root))
+        elementBeforeNode = if nodePosition == 0 then Nothing else List.head <| List.drop (nodePosition-1) (children root)
+        in case elementBeforeNode of
+            Just elem -> Node (value root) 
+                              (Utils.takeWhile ((/=) elem) (children root) ++ [addChild node elem] ++ (List.drop 1 <| Utils.dropWhile ((/=) node) (children root))) 
+                              (id root)
+            Nothing -> root
+    else Node (value root) (List.map (lowerNode node) (children root)) (id root)
+
+
+moveNode : NodeMovement -> Tree a -> Tree a -> Tree a
+moveNode movement node root = case movement of
+    ShiftUp     -> shiftNode Up node root
+    ShiftDown   -> shiftNode Down node root
+    Lift        -> liftNode node root
+    Lower       -> lowerNode node root
+
+moveNodeById : NodeMovement -> Int -> Tree a -> Tree a
+moveNodeById movement id root = moveNode movement (Maybe.withDefault root <| nodeById id root) root
