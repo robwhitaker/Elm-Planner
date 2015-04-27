@@ -13,6 +13,9 @@ empty = Empty
 newNode : Tree a -> a -> (List (Tree a)) -> Tree a
 newNode root value children = Node value children (nextId root)
 
+dummyNode : a -> Tree a
+dummyNode value = Node value [] -1 
+
 children : Tree a -> List (Tree a)
 children (Node _ children _) = children
 
@@ -71,6 +74,9 @@ removeNode node root =
     then Node (value root) (List.filter ((/=) node) (children root)) (id root)
     else Node (value root) (List.map (removeNode node) (children root)) (id root) 
 
+removeNodeById : Int -> Tree a -> Tree a
+removeNodeById id root = removeNode (Maybe.withDefault (dummyNode (value root)) <| nodeById id root) root
+
 shiftNode : ShiftDirection -> Tree a -> Tree a -> Tree a
 shiftNode dir node root = 
     if List.member node (children root)
@@ -121,3 +127,9 @@ moveNode movement node root = case movement of
 
 moveNodeById : NodeMovement -> Int -> Tree a -> Tree a
 moveNodeById movement id root = moveNode movement (Maybe.withDefault root <| nodeById id root) root
+
+mapToNode : (Tree a -> Tree a) -> Tree a -> Tree a -> Tree a
+mapToNode f node root = map (\node' -> if node == node' then f node' else node') root
+
+mapToNodeById : (Tree a -> Tree a) -> Int -> Tree a -> Tree a
+mapToNodeById f id root = mapToNode f (Maybe.withDefault (dummyNode (value root)) <| nodeById id root) root
