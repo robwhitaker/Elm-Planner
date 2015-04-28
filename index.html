@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Elm Planner</title>
+  <script type="text/javascript" src="elm.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+</body>
+
+<script type="text/javascript">
+var elmPlanner = Elm.fullscreen(Elm.TreePlanner);
+elmPlanner.ports.focus.subscribe(function(selector) {
+    setTimeout(function() {
+        var nodes = document.querySelectorAll(selector);
+        if (nodes.length === 1 && document.activeElement !== nodes[0]) {
+            nodes[0].focus();
+            nodes[0].select();
+        }
+    }, 50);
+});
+</script>
+
+</html>
