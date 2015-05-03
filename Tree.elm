@@ -25,13 +25,23 @@ value (Node value _ _) = value
 id : Tree a -> Int
 id (Node _ _ id) = id
 
+parent : Tree a -> Tree a -> Maybe (Tree a)
+parent child root  = if (children root) == [] then Nothing
+                     else if List.member child (children root) then Just root
+                     else List.head <| List.filterMap (parent child) (children root)
+
 valueM : (a -> a) -> Tree a -> Tree a
 valueM f (Node value children id) = Node (f value) children id
 
-map : (Tree a -> Tree a) -> Tree a -> Tree a
-map f tree = case tree of
-    (Node _ [] _) -> f tree
-    (Node value children id) -> f (Node value (List.map (map f) children) id)
+map : (a -> b) -> Tree a -> Tree b
+map f (Node value children id) = Node (f value) (List.map (map f) children) id
+
+mapToNodeById : (a -> a) -> Int -> Tree a -> Tree a
+mapToNodeById f id (Node value children id') = 
+    if id == id' then Node (f value) children id' else Node value (List.map (mapToNodeById f id) children) id'
+
+mapN : (Tree a -> Tree a) -> Tree a -> Tree a
+mapN f (Node value children id) = f (Node value (List.map (mapN f) children) id)
 
 addChild : Tree a -> Tree a -> Tree a
 addChild child (Node pVal pChildren id) = Node pVal (pChildren ++ [child]) id
@@ -45,28 +55,44 @@ depth tree = case tree of
     (Node _ children _) -> 1 + (List.foldl max 0 <| List.map depth children)
 
 nextId : Tree a -> Int
-nextId root = 1 + fold (\(Node _ _ id) acc -> if id > acc then id else acc) -1 root
+nextId root = 1 + foldN (\(Node _ _ id) acc -> if id > acc then id else acc) -1 root
 
 flatten : Tree a -> List (Tree a)
 flatten tree = case tree of
     Empty               -> []
     (Node _ [] _)       -> [tree]
-    (Node _ children _) -> [tree] ++ (List.concat <| List.map flatten children)
+    (Node _ children _) -> [tree] ++ (List.concatMap flatten children)
 
-fold : (Tree a -> b -> b) -> b -> Tree a -> b
-fold f acc tree = case tree of
+foldN : (Tree a -> b -> b) -> b -> Tree a -> b
+foldN f acc tree = case tree of
     Empty               -> acc
     (Node _ [] _)       -> f tree acc
     (Node _ children _) -> List.foldl f acc (flatten tree)
 
+fold : (a -> b -> b) -> b -> Tree a -> b
+fold f acc tree = case tree of
+    Empty -> acc
+    (Node value [] _) -> f value acc
+    (Node value children _) -> let 
+        newAcc = f value acc
+        in List.foldl (flip (fold f)) newAcc children 
+
 nodeById : Int -> Tree a -> Maybe (Tree a)
 nodeById id tree = List.head <| List.filter (\(Node _ _ id') -> id == id') <| flatten tree
+
+nodeByIdWithDefault : Tree a -> Int -> Tree a -> Tree a
+nodeByIdWithDefault default id tree = Maybe.withDefault default <| nodeById id tree
 
 addChildTo : Tree a -> Tree a -> Tree a -> Tree a
 addChildTo parent child root = 
     if parent == root 
     then addChild child parent
     else Node (value root) (List.map (addChildTo parent child) (children root)) (id root)
+
+addChildToNodeById : Int -> Tree a -> Tree a -> Tree a
+addChildToNodeById id child root = case nodeById id root of
+    Nothing     -> root
+    Just parent -> addChildTo parent child root
 
 removeNode : Tree a -> Tree a -> Tree a
 removeNode node root = 
@@ -127,9 +153,3 @@ moveNode movement node root = case movement of
 
 moveNodeById : NodeMovement -> Int -> Tree a -> Tree a
 moveNodeById movement id root = moveNode movement (Maybe.withDefault root <| nodeById id root) root
-
-mapToNode : (Tree a -> Tree a) -> Tree a -> Tree a -> Tree a
-mapToNode f node root = map (\node' -> if node == node' then f node' else node') root
-
-mapToNodeById : (Tree a -> Tree a) -> Int -> Tree a -> Tree a
-mapToNodeById f id root = mapToNode f (Maybe.withDefault (dummyNode (value root)) <| nodeById id root) root
