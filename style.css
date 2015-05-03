@@ -4,6 +4,15 @@ body {
     font-family: arial, verdana, helvetica, sans-serif;
 }
 
-.selected {
+.selected-unfocused {
     background-color: gray;
+}
+
+.selected-focused {
+	background-color: #5599ff;
+}
+
+.hidden {
+	text-decoration: underline;
+	font-style: italic;
 }

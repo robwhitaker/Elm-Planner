@@ -15,6 +15,7 @@
 var elmPlanner = Elm.fullscreen(Elm.TreePlanner);
 elmPlanner.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
+        console.log(selector);
         var nodes = document.querySelectorAll(selector);
         if (nodes.length === 1 && document.activeElement !== nodes[0]) {
             nodes[0].focus();
@@ -22,6 +23,14 @@ elmPlanner.ports.focus.subscribe(function(selector) {
         }
     }, 50);
 });
+
+document.onkeydown = function(e) {
+  if(!e) var e = window.event;
+    var keyCode = e.keyCode || e.which; 
+    if (keyCode == 9) {
+        e.preventDefault();
+      }
+}
 </script>
 
 </html>
