@@ -16,3 +16,7 @@ body {
 	text-decoration: underline;
 	font-style: italic;
 }
+
+ul {
+    list-style: none;
+}

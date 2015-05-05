@@ -12,17 +12,55 @@
 </body>
 
 <script type="text/javascript">
-var elmPlanner = Elm.fullscreen(Elm.TreePlanner);
+var elmPlanner = Elm.fullscreen(Elm.TreePlanner, {
+  fileUpload : ""
+});
+
 elmPlanner.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
-        console.log(selector);
         var nodes = document.querySelectorAll(selector);
         if (nodes.length === 1 && document.activeElement !== nodes[0]) {
             nodes[0].focus();
             nodes[0].select();
         }
-    }, 50);
+    }, 20);
 });
+
+elmPlanner.ports.save.subscribe(function(saveState) {
+  var pom = document.createElement('a');
+  pom.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(saveState[1]));
+  pom.setAttribute('download', saveState[0].trim() + ".elmplanner");
+
+  pom.style.display = 'none';
+  document.body.appendChild(pom);
+
+  pom.click();
+
+  document.body.removeChild(pom);
+});
+
+var loadButton = null;
+
+function linkUpFileUploader() {
+  loadButton = document.getElementById("loadButton");
+  if(!loadButton) {
+    setTimeout(linkUpFileUploader, 50);
+  } else {
+    loadButton.addEventListener("change", function() {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        elmPlanner.ports.fileUpload.send(e.target.result.trim());
+      };
+      reader.readAsText(loadButton.files[0]);
+    });
+  }
+}
+
+linkUpFileUploader();
+
+elmPlanner.ports.log.subscribe(function(str) {
+  console.log(str);
+})
 
 document.onkeydown = function(e) {
   if(!e) var e = window.event;

@@ -5,12 +5,15 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
 
-import Json.Decode as Json
+import Json.Decode as Decoder
+import Json.Decode exposing ((:=))
+import Json.Encode as Encoder
 import Set
+import String
 import Utils
 
 import Signal
-import Signal exposing (Signal)
+import Signal exposing (Signal, (<~))
 import Window
 import Keyboard
 
@@ -46,7 +49,7 @@ newItem = {
 emptyModel : State
 emptyModel = {
     rootNode = T.newNode T.Empty newItem [], 
-    projectTitle = "Untitled",
+    projectTitle = "untitled",
     sidebarSize = 0.2,
     selectedId = 0,
     renamingCurrentNode = False
@@ -56,11 +59,14 @@ emptyModel = {
 
 type Action 
     = NewItem
+    | NewProject
+    | LoadProject State
     | SelectItem Int
     | MoveSelection SelectionMovement
     | RenameItem String
     | UpdateItem String
     | RenamingItem (Maybe Int)
+    | RenameProject String
     | DeleteItem
     | MoveNode NodeMovement
     | ToggleExpanded (Maybe Int)
@@ -78,7 +84,13 @@ update action state = let
                       |> T.moveNode T.Lift child
             in { state | rootNode <- newTree, selectedId <- T.id child }
 
+        NewProject -> emptyModel
+
+        LoadProject model -> model
+
         SelectItem selectedId -> { state | selectedId <- selectedId }
+
+        RenameProject newName -> { state | projectTitle <- newName }
 
         MoveSelection dir -> case dir of
             Up -> { state | selectedId <- T.id <| Maybe.withDefault (T.Node newItem [] 0) <| List.head <| List.reverse <| Utils.takeWhile ((/=) state.selectedId << T.id) (T.flatten selectableNodes) }
@@ -108,9 +120,18 @@ update action state = let
 
             _       -> { state | rootNode <- T.moveNodeById movement state.selectedId state.rootNode }
 
-        ToggleExpanded selectedId -> 
-            Maybe.withDefault state.selectedId selectedId
-            |> (\sId -> { state | rootNode <- T.mapToNodeById (\item -> { item | expanded <- not item.expanded }) sId state.rootNode })
+        ToggleExpanded selectedId -> case selectedId of
+            Just sId -> let
+                toggledNode = T.nodeByIdWithDefault (T.dummyNode newItem) sId state.rootNode
+                in case T.nodeById state.selectedId toggledNode of
+                    Just _ -> 
+                        { state | 
+                            rootNode <- T.mapToNodeById (\item -> { item | expanded <- not item.expanded }) sId state.rootNode,
+                            selectedId <- sId 
+                        }
+                    Nothing -> { state | rootNode <- T.mapToNodeById (\item -> { item | expanded <- not item.expanded }) sId state.rootNode }
+            Nothing  -> 
+                { state | rootNode <- T.mapToNodeById (\item -> { item | expanded <- not item.expanded }) state.selectedId state.rootNode }
 
         _ -> state
 
@@ -121,7 +142,18 @@ view state (w, h) keysEnabled = let
     w' = toFloat w
     h' = toFloat h
     in div [style [("height", "100%"),("border", "1px solid black")]] [
-        div [style [("height", toString (h' * 0.06) ++ "px"), ("background-color", "grey")]] [text "top bar"],
+        div [style [("height", toString (h' * 0.06) ++ "px"), ("background-color", "grey")]] [
+            button [onClick saveFile.address ()] [text "Save"],
+            input  [type' "file", id "loadButton"] [text "Load"],
+            button [onClick uiInput.address NewProject] [text "New Project"],
+            input [
+                type' "text", 
+                on "input" targetValue (Signal.message uiInput.address << RenameProject),
+                value state.projectTitle,
+                onFocus keyboardControlsEnabled.address False,
+                onBlur keyboardControlsEnabled.address True
+            ] []
+        ],
         div [style [("display", "inline-block"), ("width", toString (w' * 0.22) ++ "px"), ("height", toString (h' * 0.88) ++ "px"), ("border", "1px solid black")],
             onClick keyboardControlsEnabled.address True
         ] [lazy3 treeToHtmlTree state keysEnabled state.rootNode],
@@ -154,14 +186,22 @@ treeToHtmlTree state keysEnabled (T.Node item children id') = let
                         div [
                             classList [("selected-focused", id' == state.selectedId && keysEnabled), ("selected-unfocused", id' == state.selectedId && (not keysEnabled))],
                             onClick uiInput.address (SelectItem id'), 
-                            onDoubleClick uiInput.address (RenamingItem (Just id'))
+                            onDoubleClick uiInput.address (RenamingItem (Just id')),
+                            style [("display", "inline-block")]
                         ] [text item.title]
         in ul [] [
-            li [classList [("hidden", not item.expanded)]] <| liContent :: (if item.expanded then List.map (lazy3 treeToHtmlTree state keysEnabled) children else [])]
+            li [classList [("hidden", not item.expanded)]] <| 
+                img [src (if item.expanded then "arrow-expanded.png" else "arrow-collapsed.png"), 
+                    width 25, 
+                    height 25,
+                    onClick uiInput.address (ToggleExpanded (Just id'))
+                    ] [] 
+                :: liContent 
+                :: (if item.expanded then List.map (lazy3 treeToHtmlTree state keysEnabled) children else [])]
 
-onEnter : Json.Decoder a -> (a -> Signal.Message) -> Attribute
+onEnter : Decoder.Decoder a -> (a -> Signal.Message) -> Attribute
 onEnter decoder f = on "keydown"
-                    (Json.object2 (\code val -> if code == 13 then Ok val else Err "") keyCode decoder)
+                    (Decoder.object2 (\code val -> if code == 13 then Ok val else Err "") keyCode decoder)
                     (\result -> case result of
                         Ok value  -> f value
                         Err _ -> Signal.message errBox.address ()
@@ -173,7 +213,7 @@ main : Signal Html
 main = Signal.map3 view state Window.dimensions keyboardControlsEnabled'
 
 state : Signal State
-state = Signal.foldp update emptyModel <| Signal.merge uiInput.signal keyboardInput
+state = Signal.foldp update emptyModel <| Signal.mergeMany [uiInput.signal, keyboardInput, load]
 
 keyboardInput : Signal Action
 keyboardInput = Signal.map2 (,) keyboardControlsEnabled' Keyboard.keysDown
@@ -200,16 +240,49 @@ keyboardControlsEnabled' = Signal.merge keyboardControlsEnabled.signal
     <| Signal.map (\action ->
             case action of
                 RenamingItem _ -> False
+                RenameProject _ -> False
                 _ -> True
         ) uiInput.signal
+
+load : Signal Action
+load = let 
+    itemDecoder  = Decoder.object3 Item ("title"    := Decoder.string) 
+                                        ("content"  := Decoder.string) 
+                                        ("expanded" := Decoder.bool)
+
+    lazy : (() -> Decoder.Decoder a) -> Decoder.Decoder a
+    lazy thunk =
+      Decoder.customDecoder Decoder.value
+          (\js -> Decoder.decodeValue (thunk ()) js)
+
+    treeDecoder  = Decoder.object3 T.Node ("value"    := itemDecoder) 
+                                          ("children" := Decoder.list (lazy (\_ -> treeDecoder))) 
+                                          ("id"       := Decoder.int)
+
+    stateDecoder = Decoder.object5 State ("rootNode"            := treeDecoder)
+                                         ("projectTitle"        := Decoder.string) 
+                                         ("sidebarSize"         := Decoder.float)
+                                         ("selectedId"          := Decoder.int)
+                                         ("renamingCurrentNode" := Decoder.bool)
+    in (Decoder.decodeString stateDecoder >> \result ->
+            case result of
+                Ok  model -> LoadProject model
+                Err _     -> NewProject
+        ) <~ fileUpload
 
 ---------- MAILBOXES ----------
 
 uiInput : Signal.Mailbox Action
 uiInput = Signal.mailbox NoOp
 
+saveFile : Signal.Mailbox ()
+saveFile = Signal.mailbox ()
+
 keyboardControlsEnabled : Signal.Mailbox Bool
 keyboardControlsEnabled = Signal.mailbox True
+
+loadButton : Signal.Mailbox String
+loadButton = Signal.mailbox ""
 
 errBox : Signal.Mailbox ()
 errBox = Signal.mailbox ()
@@ -220,3 +293,37 @@ port focus : Signal String
 port focus = Signal.filter ((/=) "") "" 
           <| Signal.dropRepeats 
           <| Signal.map (\s -> if s.renamingCurrentNode then "#node-" ++ toString s.selectedId else "") state
+
+port save : Signal (String, String)
+port save = let
+    encodeItem item = Encoder.object [
+            ("title", Encoder.string item.title),
+            ("content", Encoder.string item.content),
+            ("expanded", Encoder.bool item.expanded)
+        ]
+    
+    encodeTree (T.Node value children id) = 
+        Encoder.object [
+            ("value", encodeItem value),
+            ("children", List.map encodeTree children |> Encoder.list),
+            ("id", Encoder.int id)
+        ]
+
+    encodeState s = 
+        Encoder.object [
+            ("rootNode", encodeTree s.rootNode),
+            ("projectTitle", Encoder.string s.projectTitle),
+            ("sidebarSize", Encoder.float s.sidebarSize),
+            ("selectedId", Encoder.int s.selectedId),
+            ("renamingCurrentNode", Encoder.bool s.renamingCurrentNode)
+        ]
+
+    fileName = String.words >> String.join "_"
+    in
+        Signal.sampleOn saveFile.signal
+        <| Signal.map (\s -> (fileName s.projectTitle, (Encoder.encode 0 << encodeState) s)) state 
+
+port fileUpload : Signal String
+
+port log : Signal String
+port log = Signal.constant ""
