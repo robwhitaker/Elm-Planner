@@ -26,10 +26,15 @@ import Debug
 
 -- Application state
 type alias State = {
+    ui : UIState,
     rootNode : Tree Item,
     projectTitle : String,
-    sidebarSize : Float,
-    selectedId : Int,
+    selectedId : Int
+}
+
+type alias UIState = {
+    confirmationDialog : Maybe Dialog,
+    keyboardControlsEnabled : Bool,
     renamingCurrentNode : Bool
 }
 
@@ -37,6 +42,18 @@ type alias Item = {
     title : String,
     content : String,
     expanded : Bool
+}
+
+type alias Dialog = {
+    query   : String,
+    confirm : Action,
+    cancel  : Action
+}
+
+type alias UIEvent = {
+    action : Action,
+    isKeyboardGenerated : Bool,
+    setKeyboardControlsEnabled : Maybe Bool
 }
 
 newItem : Item 
@@ -50,8 +67,28 @@ emptyModel : State
 emptyModel = {
     rootNode = T.newNode T.Empty newItem [], 
     projectTitle = "",
-    sidebarSize = 0.2,
     selectedId = 0,
+    ui = emptyUIState
+    }
+
+emptyDialog : Dialog
+emptyDialog = {
+    query = "",
+    confirm = NoOp,
+    cancel = Cancel
+    }
+
+emptyUIEvent : UIEvent
+emptyUIEvent = {
+    action = NoOp,
+    isKeyboardGenerated = False,
+    setKeyboardControlsEnabled = Nothing
+    }
+
+emptyUIState : UIState
+emptyUIState = {
+    confirmationDialog = Nothing,
+    keyboardControlsEnabled = True,
     renamingCurrentNode = False
     }
 
@@ -59,7 +96,10 @@ emptyModel = {
 
 type Action 
     = NewItem
+    | Confirm Dialog
+    | Cancel
     | NewProject
+    | UpdateItemTitle String
     | LoadProject State
     | SelectItem Int
     | MoveSelection SelectionMovement
@@ -73,10 +113,19 @@ type Action
     | NoOp
 
 type SelectionMovement = Up | Down
-update : Action -> State -> State
-update action state = let
-            selectableNodes = T.mapN (\(T.Node value children id) -> if not value.expanded then (T.Node value [] id) else (T.Node value children id)) state.rootNode
-        in case action of
+
+update : UIEvent -> State -> State
+update event state' = let
+        ui' = state'.ui
+        state = { state' | ui <- 
+                    { ui' |
+                        keyboardControlsEnabled <- Maybe.withDefault state'.ui.keyboardControlsEnabled event.setKeyboardControlsEnabled
+                    }
+                }
+        ui = state.ui
+        action = if not ui.keyboardControlsEnabled && event.isKeyboardGenerated then NoOp else event.action
+        selectableNodes = T.mapN (\(T.Node value children id) -> if not value.expanded then (T.Node value [] id) else (T.Node value children id)) state.rootNode
+    in case action of
         NewItem -> let
             parent = T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode
             child = T.newNode state.rootNode newItem []
@@ -88,6 +137,12 @@ update action state = let
 
         LoadProject model -> model
 
+        UpdateItemTitle newTitle -> { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newTitle }) state.selectedId state.rootNode }
+
+        Confirm dialog -> { state | ui <- { ui | confirmationDialog <- Just dialog, keyboardControlsEnabled <- False } }
+
+        Cancel -> { state | ui <- { ui | confirmationDialog <- Nothing, keyboardControlsEnabled <- True } }
+
         SelectItem selectedId -> { state | selectedId <- selectedId }
 
         RenameProject newName -> { state | projectTitle <- newName }
@@ -97,20 +152,25 @@ update action state = let
             Down -> { state | selectedId <- T.id <| Maybe.withDefault (T.Node newItem [] state.selectedId) <| List.head <| List.drop 1 <| Utils.dropWhile ((/=) state.selectedId << T.id) (T.flatten selectableNodes) }
 
         RenameItem newName -> 
-            { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newName }) state.selectedId state.rootNode, renamingCurrentNode <- False }
+            { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newName }) state.selectedId state.rootNode, 
+                      ui       <- { ui | renamingCurrentNode <- False }
+            }
 
         UpdateItem newContent ->
             { state | rootNode <- T.mapToNodeById (\item -> { item | content <- newContent }) state.selectedId state.rootNode }
 
         RenamingItem selectedId -> case selectedId of
-            Just sId -> { state | selectedId <- sId, renamingCurrentNode <- True }
-            Nothing  -> { state | renamingCurrentNode <- True }
+            Just sId -> { state | selectedId <- sId, ui <- { ui | renamingCurrentNode <- True } }
+            Nothing  -> { state | ui <- { ui | renamingCurrentNode <- True } }
 
         DeleteItem -> let
                 previousNode = Maybe.withDefault (T.dummyNode newItem) <| List.head <| List.reverse 
                                <| Utils.takeWhile ((/=) (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)) (T.flatten selectableNodes)
                 prevId = if T.id previousNode < 0 then 0 else T.id previousNode
-            in { state | rootNode <- T.removeNodeById state.selectedId state.rootNode, selectedId <- prevId }
+            in { state | rootNode <- T.removeNodeById state.selectedId state.rootNode, 
+                         selectedId <- prevId, 
+                         ui <- { ui | confirmationDialog <- Nothing }
+               }
 
         MoveNode movement -> case movement of
             T.Lower -> let 
@@ -137,22 +197,49 @@ update action state = let
 
 ---------- VIEW ----------
 
-view : State -> (Int, Int) -> Bool -> Html
-view state (w, h) keysEnabled = 
-    div [] [
+view : State -> (Int, Int) -> Html
+view state (w, h) = let
+        dialog = Maybe.withDefault emptyDialog state.ui.confirmationDialog
+    in div [] [
+        div [
+            classList [("modal-background", True), ("no-display", dialog.query == "")],
+            onClick uiEvent.address { emptyUIEvent | action <- dialog.cancel, setKeyboardControlsEnabled <- Just True }
+        ] [],
+        div [
+            classList [("confirm-dialog", True), ("no-display", dialog.query == "")],
+            style [("top", toString (h//2 - 167) ++ "px"),("left", toString (w//2 - 257) ++ "px")]
+        ] [
+            h2 [] [text dialog.query],
+            div [] [
+                button [
+                    class "confirm-button",
+                    onClick uiEvent.address { emptyUIEvent | action <- dialog.confirm, setKeyboardControlsEnabled <- Just True }
+                ] [text "Confirm"],
+                button [
+                    class "cancel-button",
+                    onClick uiEvent.address { emptyUIEvent | action <- dialog.cancel, setKeyboardControlsEnabled <- Just True }
+                ] [text "Cancel"]
+            ]
+        ],
         div [class "title-bar"] [
             input [
                 type' "text", 
-                on "input" targetValue (Signal.message uiInput.address << RenameProject),
+                on "input" targetValue (Signal.message uiEvent.address << (\act ->
+                    { emptyUIEvent | action <- act, setKeyboardControlsEnabled <- Just False }
+                ) << RenameProject),
+                onFocus uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just False },
+                onBlur uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just True },
                 value state.projectTitle,
-                placeholder "Untitled Project",
-                onFocus keyboardControlsEnabled.address False,
-                onBlur keyboardControlsEnabled.address True
+                placeholder "Untitled Project"
             ] []
         ],
         div [class "options-bar"] [
-            img [onClick uiInput.address NewProject, src "new.png", class "icon"] [],
-            img [onClick saveFile.address (),src "save.png",class "icon"] [],
+            img [onClick uiEvent.address { emptyUIEvent | action <- Confirm 
+                { emptyDialog | query <- "Are you sure you want to create a new project? Any unsaved progress will be lost.",
+                                confirm <- NewProject
+                }
+                }, src "new.png", class "icon"] [],
+            img [onClick saveFile.address (), src "save.png", class "icon"] [],
             label [for "loadButton"] [
                 input  [type' "file", id "loadButton"] [text "Load"],
                 img [class "icon", src "load.png"] []
@@ -164,45 +251,50 @@ view state (w, h) keysEnabled =
         ] [
             div [
                 class "tree-pane",
-                onClick keyboardControlsEnabled.address True
-            ] [lazy3 treeToHtmlTree state keysEnabled state.rootNode],
+                onClick uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just True }
+            ] [lazy2 treeToHtmlTree state state.rootNode],
             div [
-                class "text-area-container",
-                onClick keyboardControlsEnabled.address False,
-                onBlur keyboardControlsEnabled.address True
+                class "text-area-container"
             ] [
                 textarea [
                    placeholder "...",
                    value (T.value (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)).content,
-                   on "input" targetValue (Signal.message uiInput.address << UpdateItem),
-                   onBlur keyboardControlsEnabled.address True,
-                   onFocus keyboardControlsEnabled.address False
-                  ] []
+                   on "input" targetValue (Signal.message uiEvent.address << (\act -> 
+                        { emptyUIEvent | action <- act, setKeyboardControlsEnabled <- Just False }
+                    ) << UpdateItem),
+                    onFocus uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just False },
+                    onBlur uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just True }
+                ] []
             ]
         ]
     ]
 
-treeToHtmlTree : State -> Bool -> Tree Item -> Html
-treeToHtmlTree state keysEnabled (T.Node item children id') = let
-        liContent = if state.renamingCurrentNode && id' == state.selectedId
+treeToHtmlTree : State -> Tree Item -> Html
+treeToHtmlTree state (T.Node item children id') = let
+        liContent = if state.ui.renamingCurrentNode && id' == state.selectedId
                     then 
                         input [ 
                             type' "text",
                             value item.title,
                             id ("node-" ++ toString id'), 
-                            onEnter targetValue (Signal.message uiInput.address << RenameItem),
-                            on "blur" targetValue (Signal.message uiInput.address << RenameItem),
-                            onFocus keyboardControlsEnabled.address False
+                            onEnter targetValue (Signal.message uiEvent.address << (\act -> 
+                                { emptyUIEvent | action <- act }
+                            ) << RenameItem),
+                            on "blur" targetValue (Signal.message uiEvent.address << (\act ->
+                                { emptyUIEvent | action <- act, setKeyboardControlsEnabled <- Just True }
+                            ) << RenameItem),
+                            on "input" targetValue (Signal.message uiEvent.address << (\act -> { emptyUIEvent | action <- act }) << UpdateItemTitle),
+                            onFocus uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just False }
                         ] []
                     else 
                         div [
                             classList [
                                 ("item-title", True),
-                                ("selected-focused", id' == state.selectedId && keysEnabled), 
-                                ("selected-unfocused", id' == state.selectedId && (not keysEnabled))
+                                ("selected-focused", id' == state.selectedId && state.ui.keyboardControlsEnabled), 
+                                ("selected-unfocused", id' == state.selectedId && (not state.ui.keyboardControlsEnabled))
                             ],
-                            onClick uiInput.address (SelectItem id'), 
-                            onDoubleClick uiInput.address (RenamingItem (Just id'))
+                            onClick uiEvent.address { emptyUIEvent | action <- SelectItem id' }, 
+                            onDoubleClick uiEvent.address { emptyUIEvent | action <- RenamingItem (Just id') }
                         ] [text item.title]
         in ul [classList [("root-node", id' == 0)]] [
             li [
@@ -212,11 +304,11 @@ treeToHtmlTree state keysEnabled (T.Node item children id') = let
                     img [
                         class "expand-arrow-icon",
                         src (if item.expanded then "arrow-expanded.png" else "arrow-collapsed.png"), 
-                        onClick uiInput.address (ToggleExpanded (Just id'))
+                        onClick uiEvent.address { emptyUIEvent | action <- ToggleExpanded (Just id') }
                     ] []
                 ] 
                 :: liContent 
-                :: (if item.expanded then List.map (lazy3 treeToHtmlTree state keysEnabled) children else [])]
+                :: (if item.expanded then List.map (lazy2 treeToHtmlTree state) children else [])]
 
 onEnter : Decoder.Decoder a -> (a -> Signal.Message) -> Attribute
 onEnter decoder f = on "keydown"
@@ -229,65 +321,65 @@ onEnter decoder f = on "keydown"
 ---------- INPUTS ----------
 
 main : Signal Html
-main = Signal.map3 view state Window.dimensions keyboardControlsEnabled'
+main = Signal.map2 view state Window.dimensions
 
 initialModel : State
 initialModel = decodeState getStorage |> \result -> case result of
-    Ok model -> model
+    Ok model -> let
+        ui = model.ui
+        in { model | ui <- { ui | renamingCurrentNode <- False } }
     _        -> emptyModel
 
 state : Signal State
-state = Signal.foldp update initialModel <| Signal.mergeMany [uiInput.signal, keyboardInput, load]
+state = Signal.foldp update initialModel uiInput
 
-keyboardInput : Signal Action
-keyboardInput = Signal.map2 (,) keyboardControlsEnabled' Keyboard.keysDown
-    |> Signal.dropRepeats
-    |> Signal.map (\(enabled, keypresses) -> if not enabled then NoOp else
+keyboardInput : Signal UIEvent
+keyboardInput = Signal.dropRepeats Keyboard.keysDown
+    |> Signal.map (\keypresses ->
         case (Set.toList keypresses) of
-            [17, 37] -> MoveNode T.Lift
-            [17, 38] -> MoveNode T.ShiftUp
-            [17, 39] -> MoveNode T.Lower
-            [17, 40] -> MoveNode T.ShiftDown
-            [13, 17] -> NewItem
-            [17, 46] -> DeleteItem
-            [32]     -> ToggleExpanded Nothing
-            [13]     -> RenamingItem Nothing
-            [38]     -> MoveSelection Up
-            [40]     -> MoveSelection Down
-            _        -> NoOp
+            [17, 37] -> { emptyUIEvent | action <- MoveNode T.Lift, isKeyboardGenerated <- True }
+            [17, 38] -> { emptyUIEvent | action <- MoveNode T.ShiftUp, isKeyboardGenerated <- True }
+            [17, 39] -> { emptyUIEvent | action <- MoveNode T.Lower, isKeyboardGenerated <- True }
+            [17, 40] -> { emptyUIEvent | action <- MoveNode T.ShiftDown, isKeyboardGenerated <- True }
+            [13, 17] -> { emptyUIEvent | action <- NewItem, isKeyboardGenerated <- True }
+            [17, 46] -> { emptyUIEvent | action <- Confirm 
+                            { emptyDialog |
+                                query   <- "Are you sure you want to delete this item and all sub-items?",
+                                confirm <- DeleteItem
+                            },
+                            isKeyboardGenerated <- True
+                        }
+            [32]     -> { emptyUIEvent | action <- ToggleExpanded Nothing, isKeyboardGenerated <- True }
+            [13]     -> { emptyUIEvent | action <- RenamingItem Nothing, isKeyboardGenerated <- True }
+            [38]     -> { emptyUIEvent | action <- MoveSelection Up, isKeyboardGenerated <- True }
+            [40]     -> { emptyUIEvent | action <- MoveSelection Down , isKeyboardGenerated <- True}
+            _        -> emptyUIEvent
     )
-    |> Signal.filter ((/=) NoOp) NoOp
+    |> Signal.filter ((/=) emptyUIEvent) emptyUIEvent
 
-
-keyboardControlsEnabled' : Signal Bool
-keyboardControlsEnabled' = Signal.merge keyboardControlsEnabled.signal 
-    <| Signal.map (\action ->
-            case action of
-                RenamingItem _ -> False
-                RenameProject _ -> False
-                UpdateItem _ -> False
-                _ -> True
-        ) uiInput.signal
-
-load : Signal Action
-load =  (\file -> decodeState file |> \result -> case result of
-    Ok model -> LoadProject model
-    Err _    -> NoOp
+load : Signal UIEvent
+load = (decodeState >> \result -> case result of
+    Ok model -> { emptyUIEvent | action <- Confirm
+                    { emptyDialog | 
+                        query   <- "Are you sure you want to open this file? Any unsaved progress will be lost.",
+                        confirm <- let
+                            ui = model.ui
+                            in LoadProject { model | ui <- { ui | renamingCurrentNode <- False } } 
+                    }
+                }
+    Err _    -> emptyUIEvent
     ) <~ fileUpload
+
+uiInput : Signal UIEvent
+uiInput = Signal.mergeMany [uiEvent.signal, keyboardInput, load]
 
 ---------- MAILBOXES ----------
 
-uiInput : Signal.Mailbox Action
-uiInput = Signal.mailbox NoOp
+uiEvent : Signal.Mailbox UIEvent
+uiEvent = Signal.mailbox emptyUIEvent
 
 saveFile : Signal.Mailbox ()
 saveFile = Signal.mailbox ()
-
-keyboardControlsEnabled : Signal.Mailbox Bool
-keyboardControlsEnabled = Signal.mailbox True
-
-loadButton : Signal.Mailbox String
-loadButton = Signal.mailbox ""
 
 errBox : Signal.Mailbox ()
 errBox = Signal.mailbox ()
@@ -297,7 +389,7 @@ errBox = Signal.mailbox ()
 port focus : Signal String
 port focus = Signal.filter ((/=) "") "" 
           <| Signal.dropRepeats 
-          <| Signal.map (\s -> if s.renamingCurrentNode then "#node-" ++ toString s.selectedId else "") state
+          <| Signal.map (\s -> if s.ui.renamingCurrentNode then "#node-" ++ toString s.selectedId else "") state
 
 port save : Signal (String, String)
 port save = let
@@ -315,7 +407,6 @@ port setStorage : Signal String
 port setStorage = Signal.map encodeState state 
 
 port fileUpload : Signal String
-
 
 port log : Signal String
 port log = Signal.constant ""
@@ -341,9 +432,7 @@ encodeState s = let
         Encoder.object [
             ("rootNode", encodeTree s.rootNode),
             ("projectTitle", Encoder.string s.projectTitle),
-            ("sidebarSize", Encoder.float s.sidebarSize),
-            ("selectedId", Encoder.int s.selectedId),
-            ("renamingCurrentNode", Encoder.bool s.renamingCurrentNode)
+            ("selectedId", Encoder.int s.selectedId)
         ]
     in Encoder.encode 0 <| encodeState' s
 
@@ -362,9 +451,8 @@ decodeState s = let
                                           ("children" := Decoder.list (lazy (\_ -> treeDecoder))) 
                                           ("id"       := Decoder.int)
 
-    stateDecoder = Decoder.object5 State ("rootNode"            := treeDecoder)
+    stateDecoder = Decoder.object3 (State emptyUIState) 
+                                         ("rootNode"            := treeDecoder)
                                          ("projectTitle"        := Decoder.string) 
-                                         ("sidebarSize"         := Decoder.float)
                                          ("selectedId"          := Decoder.int)
-                                         ("renamingCurrentNode" := Decoder.bool)
     in (Decoder.decodeString stateDecoder s) 
