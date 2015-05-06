@@ -49,7 +49,7 @@ newItem = {
 emptyModel : State
 emptyModel = {
     rootNode = T.newNode T.Empty newItem [], 
-    projectTitle = "untitled",
+    projectTitle = "",
     sidebarSize = 0.2,
     selectedId = 0,
     renamingCurrentNode = False
@@ -138,44 +138,56 @@ update action state = let
 ---------- VIEW ----------
 
 view : State -> (Int, Int) -> Bool -> Html
-view state (w, h) keysEnabled = let
-    w' = toFloat w
-    h' = toFloat h
-    in div [style [("height", "100%"),("border", "1px solid black")]] [
-        div [style [("height", toString (h' * 0.06) ++ "px"), ("background-color", "grey")]] [
-            button [onClick saveFile.address ()] [text "Save"],
-            input  [type' "file", id "loadButton"] [text "Load"],
-            button [onClick uiInput.address NewProject] [text "New Project"],
+view state (w, h) keysEnabled = 
+    div [] [
+        div [class "title-bar"] [
             input [
                 type' "text", 
                 on "input" targetValue (Signal.message uiInput.address << RenameProject),
                 value state.projectTitle,
+                placeholder "Untitled Project",
                 onFocus keyboardControlsEnabled.address False,
                 onBlur keyboardControlsEnabled.address True
             ] []
         ],
-        div [style [("display", "inline-block"), ("width", toString (w' * 0.22) ++ "px"), ("height", toString (h' * 0.88) ++ "px"), ("border", "1px solid black")],
-            onClick keyboardControlsEnabled.address True
-        ] [lazy3 treeToHtmlTree state keysEnabled state.rootNode],
-        div [style [("display", "inline-block"), ("width", toString (w' * 0.01) ++ "px")]] [],
-        div [style [("display", "inline-block"), ("width", toString (w' * 0.76) ++ "px"), ("height", toString (h' * 0.88 - 5) ++ "px"), ("position", "absolute"), ("right", "1"), ("border", "1 px solid black")],
-            onClick keyboardControlsEnabled.address False,
-            onBlur keyboardControlsEnabled.address True
+        div [class "options-bar"] [
+            img [onClick uiInput.address NewProject, src "new.png", class "icon"] [],
+            img [onClick saveFile.address (),src "save.png",class "icon"] [],
+            label [for "loadButton"] [
+                input  [type' "file", id "loadButton"] [text "Load"],
+                img [class "icon", src "load.png"] []
+            ] 
+        ],
+        div [
+            class "main-container",
+            style [("height", toString (h-90) ++ "px")]
+        ] [
+            div [
+                class "tree-pane",
+                onClick keyboardControlsEnabled.address True
+            ] [lazy3 treeToHtmlTree state keysEnabled state.rootNode],
+            div [
+                class "text-area-container",
+                onClick keyboardControlsEnabled.address False,
+                onBlur keyboardControlsEnabled.address True
+            ] [
+                textarea [
+                   placeholder "...",
+                   value (T.value (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)).content,
+                   on "input" targetValue (Signal.message uiInput.address << UpdateItem),
+                   onBlur keyboardControlsEnabled.address True,
+                   onFocus keyboardControlsEnabled.address False
+                  ] []
+            ]
         ]
-            [textarea [style [("display", "inline-block"), ("float","right"), ("width", "100%"), ("height", "100%"), ("border", "none"), ("resize", "none")], 
-                       placeholder "editor",
-                       value (T.value (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)).content,
-                       on "change" targetValue (Signal.message uiInput.address << UpdateItem),
-                       onBlur keyboardControlsEnabled.address True,
-                       onFocus keyboardControlsEnabled.address False
-                      ] []]
     ]
 
 treeToHtmlTree : State -> Bool -> Tree Item -> Html
 treeToHtmlTree state keysEnabled (T.Node item children id') = let
         liContent = if state.renamingCurrentNode && id' == state.selectedId
                     then 
-                        input [   
+                        input [ 
+                            type' "text",
                             value item.title,
                             id ("node-" ++ toString id'), 
                             onEnter targetValue (Signal.message uiInput.address << RenameItem),
@@ -184,18 +196,25 @@ treeToHtmlTree state keysEnabled (T.Node item children id') = let
                         ] []
                     else 
                         div [
-                            classList [("selected-focused", id' == state.selectedId && keysEnabled), ("selected-unfocused", id' == state.selectedId && (not keysEnabled))],
+                            classList [
+                                ("item-title", True),
+                                ("selected-focused", id' == state.selectedId && keysEnabled), 
+                                ("selected-unfocused", id' == state.selectedId && (not keysEnabled))
+                            ],
                             onClick uiInput.address (SelectItem id'), 
-                            onDoubleClick uiInput.address (RenamingItem (Just id')),
-                            style [("display", "inline-block")]
+                            onDoubleClick uiInput.address (RenamingItem (Just id'))
                         ] [text item.title]
-        in ul [] [
-            li [classList [("hidden", not item.expanded)]] <| 
-                img [src (if item.expanded then "arrow-expanded.png" else "arrow-collapsed.png"), 
-                    width 25, 
-                    height 25,
-                    onClick uiInput.address (ToggleExpanded (Just id'))
-                    ] [] 
+        in ul [classList [("root-node", id' == 0)]] [
+            li [
+                classList [("hidden", not item.expanded && children /= [])]
+            ] <| 
+                div [class "arrow-container"] [
+                    img [
+                        class "expand-arrow-icon",
+                        src (if item.expanded then "arrow-expanded.png" else "arrow-collapsed.png"), 
+                        onClick uiInput.address (ToggleExpanded (Just id'))
+                    ] []
+                ] 
                 :: liContent 
                 :: (if item.expanded then List.map (lazy3 treeToHtmlTree state keysEnabled) children else [])]
 
@@ -212,8 +231,13 @@ onEnter decoder f = on "keydown"
 main : Signal Html
 main = Signal.map3 view state Window.dimensions keyboardControlsEnabled'
 
+initialModel : State
+initialModel = decodeState getStorage |> \result -> case result of
+    Ok model -> model
+    _        -> emptyModel
+
 state : Signal State
-state = Signal.foldp update emptyModel <| Signal.mergeMany [uiInput.signal, keyboardInput, load]
+state = Signal.foldp update initialModel <| Signal.mergeMany [uiInput.signal, keyboardInput, load]
 
 keyboardInput : Signal Action
 keyboardInput = Signal.map2 (,) keyboardControlsEnabled' Keyboard.keysDown
@@ -241,34 +265,15 @@ keyboardControlsEnabled' = Signal.merge keyboardControlsEnabled.signal
             case action of
                 RenamingItem _ -> False
                 RenameProject _ -> False
+                UpdateItem _ -> False
                 _ -> True
         ) uiInput.signal
 
 load : Signal Action
-load = let 
-    itemDecoder  = Decoder.object3 Item ("title"    := Decoder.string) 
-                                        ("content"  := Decoder.string) 
-                                        ("expanded" := Decoder.bool)
-
-    lazy : (() -> Decoder.Decoder a) -> Decoder.Decoder a
-    lazy thunk =
-      Decoder.customDecoder Decoder.value
-          (\js -> Decoder.decodeValue (thunk ()) js)
-
-    treeDecoder  = Decoder.object3 T.Node ("value"    := itemDecoder) 
-                                          ("children" := Decoder.list (lazy (\_ -> treeDecoder))) 
-                                          ("id"       := Decoder.int)
-
-    stateDecoder = Decoder.object5 State ("rootNode"            := treeDecoder)
-                                         ("projectTitle"        := Decoder.string) 
-                                         ("sidebarSize"         := Decoder.float)
-                                         ("selectedId"          := Decoder.int)
-                                         ("renamingCurrentNode" := Decoder.bool)
-    in (Decoder.decodeString stateDecoder >> \result ->
-            case result of
-                Ok  model -> LoadProject model
-                Err _     -> NewProject
-        ) <~ fileUpload
+load =  (\file -> decodeState file |> \result -> case result of
+    Ok model -> LoadProject model
+    Err _    -> NoOp
+    ) <~ fileUpload
 
 ---------- MAILBOXES ----------
 
@@ -296,6 +301,29 @@ port focus = Signal.filter ((/=) "") ""
 
 port save : Signal (String, String)
 port save = let
+    fileName = String.words >> String.join "_"
+    in
+        Signal.sampleOn saveFile.signal
+        <| Signal.map (\s -> (,)
+                             (if s.projectTitle == "" then "untitled" else fileName s.projectTitle) 
+                             (encodeState s)
+                      ) state
+        
+port getStorage : String
+
+port setStorage : Signal String
+port setStorage = Signal.map encodeState state 
+
+port fileUpload : Signal String
+
+
+port log : Signal String
+port log = Signal.constant ""
+
+---------- HELPERS ----------
+
+encodeState : State -> String
+encodeState s = let
     encodeItem item = Encoder.object [
             ("title", Encoder.string item.title),
             ("content", Encoder.string item.content),
@@ -309,7 +337,7 @@ port save = let
             ("id", Encoder.int id)
         ]
 
-    encodeState s = 
+    encodeState' s = 
         Encoder.object [
             ("rootNode", encodeTree s.rootNode),
             ("projectTitle", Encoder.string s.projectTitle),
@@ -317,13 +345,26 @@ port save = let
             ("selectedId", Encoder.int s.selectedId),
             ("renamingCurrentNode", Encoder.bool s.renamingCurrentNode)
         ]
+    in Encoder.encode 0 <| encodeState' s
 
-    fileName = String.words >> String.join "_"
-    in
-        Signal.sampleOn saveFile.signal
-        <| Signal.map (\s -> (fileName s.projectTitle, (Encoder.encode 0 << encodeState) s)) state 
+decodeState : String -> Result String State
+decodeState s = let 
+    itemDecoder  = Decoder.object3 Item ("title"    := Decoder.string) 
+                                        ("content"  := Decoder.string) 
+                                        ("expanded" := Decoder.bool)
 
-port fileUpload : Signal String
+    lazy : (() -> Decoder.Decoder a) -> Decoder.Decoder a
+    lazy thunk =
+      Decoder.customDecoder Decoder.value
+          (\js -> Decoder.decodeValue (thunk ()) js)
 
-port log : Signal String
-port log = Signal.constant ""
+    treeDecoder  = Decoder.object3 T.Node ("value"    := itemDecoder) 
+                                          ("children" := Decoder.list (lazy (\_ -> treeDecoder))) 
+                                          ("id"       := Decoder.int)
+
+    stateDecoder = Decoder.object5 State ("rootNode"            := treeDecoder)
+                                         ("projectTitle"        := Decoder.string) 
+                                         ("sidebarSize"         := Decoder.float)
+                                         ("selectedId"          := Decoder.int)
+                                         ("renamingCurrentNode" := Decoder.bool)
+    in (Decoder.decodeString stateDecoder s) 

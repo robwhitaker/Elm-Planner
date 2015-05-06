@@ -5,18 +5,137 @@ body {
 }
 
 .selected-unfocused {
-    background-color: gray;
+    border: 1px dashed #0accde;
 }
 
 .selected-focused {
-	background-color: #5599ff;
+    border: 1px solid #0accde;
+	background-color: #0accde;
 }
 
 .hidden {
-	text-decoration: underline;
 	font-style: italic;
 }
 
 ul {
     list-style: none;
+}
+
+.title-bar {
+    height: 50px;
+    min-width: 700px;
+    width: 98%;
+    margin: 0 auto;
+}
+
+.title-bar input[type=text] {
+    height: 100%;
+    border: none;
+    outline: none;
+    width: 100%;
+    font-size: 24px;
+    padding: 0;
+}
+
+.main-container {
+    margin: auto;
+    width: 100%;
+    clear: both;
+    display: table;
+    content: "";
+    overflow: hidden;
+    position: relative;
+    min-width: 700px;
+    background-color: #f4f8f9;
+}
+
+.tree-pane {
+    width: 25%;
+    height: 100%;
+    float: left;
+    border-right: 1px solid #0accde;
+    overflow: auto;
+}
+
+.tree-pane li {
+    white-space: nowrap;
+    width: 100%;
+}
+
+.arrow-container {
+    width: 10%;
+    min-width: 20px;
+    float: left;
+    display: inline-block;
+}
+
+.tree-pane .item-title {
+    display: inline-block;
+    min-width: 250px;
+    line-height: 30px;
+    padding: 0.5em 1em 0.5em 1em;
+    white-space: nowrap;
+    border-radius: 0.5em;
+}
+
+.root-node {
+    padding-left: 0;
+}
+
+.tree-pane input[type=text] {
+    border-radius: 0.5em;
+    padding: 0.5em;
+    border: 1px solid #0accde;
+    outline: none;
+    font-size: 18px;
+}
+
+.tree-pane .expand-arrow-icon {
+    width: 20px;
+    height: 20px;
+    float: left;
+    margin-top: 10px;
+}
+
+.text-area-container {
+    width: 75%;
+    height: 100%;
+    position: absolute;
+    right: 0;
+    margin-right: -1px;
+    overflow: hidden;
+    background-color: #fff;
+}
+
+.text-area-container textarea {
+    width: 98%;
+    height: 98%;
+    margin: 1%;
+    resize: none;
+    border: none;
+    outline: none;
+    background-color: inherit;
+}
+
+.options-bar {
+    background-color: #0accde;
+    height: 40px;
+    padding-left: 0.6%;
+}
+
+#loadButton {
+    display: none;
+}
+
+.options-bar .icon {
+    height: 30px;
+    width: 30px;
+    cursor: pointer;
+    margin: 5px 20px 0px 0px;
+}
+
+.options-bar .icon:hover {
+    height: 35px;
+    width: 35px;
+    margin: 0px 15px 0px 0px;
 }

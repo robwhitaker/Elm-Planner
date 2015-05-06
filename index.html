@@ -12,9 +12,17 @@
 </body>
 
 <script type="text/javascript">
+
+var startingState = localStorage.getItem("elm-planner-state") || "";
+
 var elmPlanner = Elm.fullscreen(Elm.TreePlanner, {
-  fileUpload : ""
+  fileUpload : "",
+  getStorage : startingState
 });
+
+
+  // elmPlanner.ports.fileUpload.send(startingState);
+
 
 elmPlanner.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
@@ -58,9 +66,13 @@ function linkUpFileUploader() {
 
 linkUpFileUploader();
 
+elmPlanner.ports.setStorage.subscribe(function(stateJSON) {
+  localStorage.setItem("elm-planner-state", stateJSON);
+});
+
 elmPlanner.ports.log.subscribe(function(str) {
   console.log(str);
-})
+});
 
 document.onkeydown = function(e) {
   if(!e) var e = window.event;
