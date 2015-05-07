@@ -34,8 +34,8 @@ type alias State = {
 
 type alias UIState = {
     confirmationDialog : Maybe Dialog,
-    keyboardControlsEnabled : Bool,
-    renamingCurrentNode : Bool
+    context : Context,
+    lastContext : Context
 }
 
 type alias Item = {
@@ -50,10 +50,9 @@ type alias Dialog = {
     cancel  : Action
 }
 
-type alias UIEvent = {
+type alias Event = {
     action : Action,
-    isKeyboardGenerated : Bool,
-    setKeyboardControlsEnabled : Maybe Bool
+    setContext : Maybe Context
 }
 
 newItem : Item 
@@ -78,18 +77,17 @@ emptyDialog = {
     cancel = Cancel
     }
 
-emptyUIEvent : UIEvent
-emptyUIEvent = {
+emptyEvent : Event
+emptyEvent = {
     action = NoOp,
-    isKeyboardGenerated = False,
-    setKeyboardControlsEnabled = Nothing
+    setContext = Nothing
     }
 
 emptyUIState : UIState
 emptyUIState = {
     confirmationDialog = Nothing,
-    keyboardControlsEnabled = True,
-    renamingCurrentNode = False
+    context = Default,
+    lastContext = Default
     }
 
 ---------- UPDATE ----------
@@ -114,18 +112,28 @@ type Action
 
 type SelectionMovement = Up | Down
 
-update : UIEvent -> State -> State
-update event state' = let
-        ui' = state'.ui
-        state = { state' | ui <- 
-                    { ui' |
-                        keyboardControlsEnabled <- Maybe.withDefault state'.ui.keyboardControlsEnabled event.setKeyboardControlsEnabled
-                    }
-                }
+type Context = Default | TextInput | ConfirmDialog | TitleInput | MainTextArea | RenamingNode
+
+type Input = KeyboardEvent (List Int) | UIEvent Event
+
+update : Input -> State -> State
+update input s = let
+        event = case input of
+            KeyboardEvent keys -> keyPressesToEvent keys s
+            UIEvent e          -> e
+
+        ui' = s.ui
+        oldContext = s.ui.context
+        newContext = Maybe.withDefault s.ui.context event.setContext
+        state = { s | ui <- { ui' | context <- newContext, 
+                                    lastContext <- if newContext /= oldContext 
+                                                   then oldContext 
+                                                   else s.ui.lastContext } 
+                } 
         ui = state.ui
-        action = if not ui.keyboardControlsEnabled && event.isKeyboardGenerated then NoOp else event.action
+
         selectableNodes = T.mapN (\(T.Node value children id) -> if not value.expanded then (T.Node value [] id) else (T.Node value children id)) state.rootNode
-    in case action of
+    in case event.action of
         NewItem -> let
             parent = T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode
             child = T.newNode state.rootNode newItem []
@@ -139,9 +147,9 @@ update event state' = let
 
         UpdateItemTitle newTitle -> { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newTitle }) state.selectedId state.rootNode }
 
-        Confirm dialog -> { state | ui <- { ui | confirmationDialog <- Just dialog, keyboardControlsEnabled <- False } }
+        Confirm dialog -> { state | ui <- { ui | confirmationDialog <- Just dialog, context <- ConfirmDialog } }
 
-        Cancel -> { state | ui <- { ui | confirmationDialog <- Nothing, keyboardControlsEnabled <- True } }
+        Cancel -> { state | ui <- { ui | confirmationDialog <- Nothing, context <- Default } }
 
         SelectItem selectedId -> { state | selectedId <- selectedId }
 
@@ -153,15 +161,15 @@ update event state' = let
 
         RenameItem newName -> 
             { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newName }) state.selectedId state.rootNode, 
-                      ui       <- { ui | renamingCurrentNode <- False }
+                      ui       <- { ui | context <- Default }
             }
 
         UpdateItem newContent ->
             { state | rootNode <- T.mapToNodeById (\item -> { item | content <- newContent }) state.selectedId state.rootNode }
 
         RenamingItem selectedId -> case selectedId of
-            Just sId -> { state | selectedId <- sId, ui <- { ui | renamingCurrentNode <- True } }
-            Nothing  -> { state | ui <- { ui | renamingCurrentNode <- True } }
+            Just sId -> { state | selectedId <- sId, ui <- { ui | context <- RenamingNode } }
+            Nothing  -> { state | ui <- { ui | context <- RenamingNode } }
 
         DeleteItem -> let
                 previousNode = Maybe.withDefault (T.dummyNode newItem) <| List.head <| List.reverse 
@@ -195,54 +203,109 @@ update event state' = let
 
         _ -> state
 
+keyPressesToEvent : List Int -> State -> Event
+keyPressesToEvent keypresses state = case state.ui.context of
+    Default -> case keypresses of 
+        [17, 37] -> { emptyEvent | action <- MoveNode T.Lift }
+        [17, 38] -> { emptyEvent | action <- MoveNode T.ShiftUp }
+        [17, 39] -> { emptyEvent | action <- MoveNode T.Lower }
+        [17, 40] -> { emptyEvent | action <- MoveNode T.ShiftDown }
+        [13, 17] -> { emptyEvent | action <- NewItem }
+        [46]     -> { emptyEvent | action <- Confirm 
+                        { emptyDialog |
+                            query   <- "Are you sure you want to delete this item and all sub-items?",
+                            confirm <- DeleteItem
+                        }
+                    }
+        [32]     -> { emptyEvent | action <- ToggleExpanded Nothing }
+        [13]     -> { emptyEvent | action <- RenamingItem Nothing }
+        [38]     -> { emptyEvent | action <- MoveSelection Up }
+        [40]     -> { emptyEvent | action <- MoveSelection Down }
+        [27]     -> { emptyEvent | setContext <- Just TitleInput }
+        [9]      -> { emptyEvent | setContext <- Just MainTextArea }
+        _        -> emptyEvent
+
+    ConfirmDialog -> case keypresses of
+        [13]     -> { emptyEvent | action <- 
+                            (Maybe.withDefault emptyDialog state.ui.confirmationDialog).confirm, setContext <- Just Default }
+        [27]     -> { emptyEvent | action <- 
+                            (Maybe.withDefault emptyDialog state.ui.confirmationDialog).cancel, setContext <- Just Default }
+        _        -> emptyEvent
+
+    TitleInput -> case keypresses of
+        [9]      -> { emptyEvent | setContext <- Just state.ui.lastContext }
+        [13]     -> { emptyEvent | setContext <- Just state.ui.lastContext }
+        [27]     -> { emptyEvent | setContext <- Just state.ui.lastContext }
+        _        -> emptyEvent
+
+    MainTextArea -> case keypresses of
+        [9]          -> { emptyEvent | setContext <- Just Default }
+        [17, 38]     -> { emptyEvent | action <- MoveSelection Up }
+        [17, 40]     -> { emptyEvent | action <- MoveSelection Down }
+        [13, 17]     -> { emptyEvent | action <- NewItem }
+        [27]         -> { emptyEvent | setContext <- Just TitleInput }
+        _        -> emptyEvent
+
+    RenamingNode -> case keypresses of
+        [9]          -> { emptyEvent | setContext <- Just MainTextArea }
+        [13]         -> { emptyEvent | setContext <- Just Default }
+        [38]         -> { emptyEvent | setContext <- Just Default }
+        [40]         -> { emptyEvent | setContext <- Just Default }
+        _            -> emptyEvent
+
+
+    _ -> emptyEvent
+
 ---------- VIEW ----------
 
 view : State -> (Int, Int) -> Html
 view state (w, h) = let
         dialog = Maybe.withDefault emptyDialog state.ui.confirmationDialog
+        showConfirmDialog = state.ui.context == ConfirmDialog
     in div [] [
         div [
-            classList [("modal-background", True), ("no-display", dialog.query == "")],
-            onClick uiEvent.address { emptyUIEvent | action <- dialog.cancel, setKeyboardControlsEnabled <- Just True }
+            classList [("modal-background", True), ("no-display", not showConfirmDialog)],
+            onClick uiEvent.address { emptyEvent | action <- dialog.cancel, setContext <- Just Default }
         ] [],
         div [
-            classList [("confirm-dialog", True), ("no-display", dialog.query == "")],
+            classList [("confirm-dialog", True), ("no-display", not showConfirmDialog)],
             style [("top", toString (h//2 - 167) ++ "px"),("left", toString (w//2 - 257) ++ "px")]
         ] [
             h2 [] [text dialog.query],
             div [] [
                 button [
                     class "confirm-button",
-                    onClick uiEvent.address { emptyUIEvent | action <- dialog.confirm, setKeyboardControlsEnabled <- Just True }
+                    onClick uiEvent.address { emptyEvent | action <- dialog.confirm, setContext <- Just Default }
                 ] [text "Confirm"],
                 button [
                     class "cancel-button",
-                    onClick uiEvent.address { emptyUIEvent | action <- dialog.cancel, setKeyboardControlsEnabled <- Just True }
+                    onClick uiEvent.address { emptyEvent | action <- dialog.cancel, setContext <- Just Default }
                 ] [text "Cancel"]
             ]
         ],
         div [class "title-bar"] [
             input [
+                id "title-bar-input",
                 type' "text", 
                 on "input" targetValue (Signal.message uiEvent.address << (\act ->
-                    { emptyUIEvent | action <- act, setKeyboardControlsEnabled <- Just False }
+                    { emptyEvent | action <- act }
                 ) << RenameProject),
-                onFocus uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just False },
-                onBlur uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just True },
+                onFocus uiEvent.address { emptyEvent | setContext <- Just TitleInput },
+                --onBlur uiEvent.address { emptyEvent | setContext <- Just Default },
                 value state.projectTitle,
                 placeholder "Untitled Project"
             ] []
         ],
-        div [class "options-bar"] [
-            img [onClick uiEvent.address { emptyUIEvent | action <- Confirm 
-                { emptyDialog | query <- "Are you sure you want to create a new project? Any unsaved progress will be lost.",
-                                confirm <- NewProject
-                }
-                }, src "new.png", class "icon"] [],
-            img [onClick saveFile.address (), src "save.png", class "icon"] [],
+        div [class "options-bar", onClick uiEvent.address {emptyEvent | setContext <- Just Default } ] [
+            img [onClick uiEvent.address { emptyEvent | action <- Confirm 
+                    { emptyDialog | query <- "Are you sure you want to create a new project? Any unsaved progress will be lost.",
+                                    confirm <- NewProject
+                    }
+                }, src "new.png", class "icon", alt "New Project", title "New Project"] [],
+            img [onClick saveFile.address (), src "save.png", class "icon", alt "Save Project", title "Save Project"] [],
             label [for "loadButton"] [
                 input  [type' "file", id "loadButton"] [text "Load"],
-                img [class "icon", src "load.png"] []
+                img [class "icon", src "load.png", alt "Load Project", title "Load Project"] []
             ] 
         ],
         div [
@@ -251,50 +314,46 @@ view state (w, h) = let
         ] [
             div [
                 class "tree-pane",
-                onClick uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just True }
+                onClick uiEvent.address { emptyEvent | setContext <- Just Default }
             ] [lazy2 treeToHtmlTree state state.rootNode],
-            div [
-                class "text-area-container"
-            ] [
-                textarea [
-                   placeholder "...",
-                   value (T.value (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)).content,
-                   on "input" targetValue (Signal.message uiEvent.address << (\act -> 
-                        { emptyUIEvent | action <- act, setKeyboardControlsEnabled <- Just False }
-                    ) << UpdateItem),
-                    onFocus uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just False },
-                    onBlur uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just True }
-                ] []
+            label [for "textbox"] [
+                div [
+                    class "text-area-container"
+                ] [
+                    textarea [
+                        id "textbox",
+                        placeholder "...",
+                        value (T.value (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)).content,
+                        on "input" targetValue (Signal.message uiEvent.address << (\act -> 
+                            { emptyEvent | action <- act }
+                        ) << UpdateItem),
+                        onFocus uiEvent.address { emptyEvent | setContext <- Just MainTextArea }
+                        --onBlur uiEvent.address { emptyEvent | setContext <- Just Default }
+                    ] []
+                ]
             ]
         ]
     ]
 
 treeToHtmlTree : State -> Tree Item -> Html
 treeToHtmlTree state (T.Node item children id') = let
-        liContent = if state.ui.renamingCurrentNode && id' == state.selectedId
+        liContent = if state.ui.context == RenamingNode && id' == state.selectedId
                     then 
                         input [ 
                             type' "text",
                             value item.title,
                             id ("node-" ++ toString id'), 
-                            onEnter targetValue (Signal.message uiEvent.address << (\act -> 
-                                { emptyUIEvent | action <- act }
-                            ) << RenameItem),
-                            on "blur" targetValue (Signal.message uiEvent.address << (\act ->
-                                { emptyUIEvent | action <- act, setKeyboardControlsEnabled <- Just True }
-                            ) << RenameItem),
-                            on "input" targetValue (Signal.message uiEvent.address << (\act -> { emptyUIEvent | action <- act }) << UpdateItemTitle),
-                            onFocus uiEvent.address { emptyUIEvent | setKeyboardControlsEnabled <- Just False }
+                            on "input" targetValue (Signal.message uiEvent.address << (\act -> { emptyEvent | action <- act }) << UpdateItemTitle)
                         ] []
                     else 
                         div [
                             classList [
                                 ("item-title", True),
-                                ("selected-focused", id' == state.selectedId && state.ui.keyboardControlsEnabled), 
-                                ("selected-unfocused", id' == state.selectedId && (not state.ui.keyboardControlsEnabled))
+                                ("selected-focused", id' == state.selectedId && state.ui.context == Default), 
+                                ("selected-unfocused", id' == state.selectedId && (not <| state.ui.context == Default))
                             ],
-                            onClick uiEvent.address { emptyUIEvent | action <- SelectItem id' }, 
-                            onDoubleClick uiEvent.address { emptyUIEvent | action <- RenamingItem (Just id') }
+                            onClick uiEvent.address { emptyEvent | action <- SelectItem id' }, 
+                            onDoubleClick uiEvent.address { emptyEvent | action <- RenamingItem (Just id') }
                         ] [text item.title]
         in ul [classList [("root-node", id' == 0)]] [
             li [
@@ -304,19 +363,11 @@ treeToHtmlTree state (T.Node item children id') = let
                     img [
                         class "expand-arrow-icon",
                         src (if item.expanded then "arrow-expanded.png" else "arrow-collapsed.png"), 
-                        onClick uiEvent.address { emptyUIEvent | action <- ToggleExpanded (Just id') }
+                        onClick uiEvent.address { emptyEvent | action <- ToggleExpanded (Just id') }
                     ] []
                 ] 
                 :: liContent 
                 :: (if item.expanded then List.map (lazy2 treeToHtmlTree state) children else [])]
-
-onEnter : Decoder.Decoder a -> (a -> Signal.Message) -> Attribute
-onEnter decoder f = on "keydown"
-                    (Decoder.object2 (\code val -> if code == 13 then Ok val else Err "") keyCode decoder)
-                    (\result -> case result of
-                        Ok value  -> f value
-                        Err _ -> Signal.message errBox.address ()
-                    )
 
 ---------- INPUTS ----------
 
@@ -327,56 +378,35 @@ initialModel : State
 initialModel = decodeState getStorage |> \result -> case result of
     Ok model -> let
         ui = model.ui
-        in { model | ui <- { ui | renamingCurrentNode <- False } }
+        in { model | ui <- { ui | context <- Default } }
     _        -> emptyModel
 
 state : Signal State
-state = Signal.foldp update initialModel uiInput
+state = Signal.foldp update initialModel inputEvent
 
-keyboardInput : Signal UIEvent
-keyboardInput = Signal.dropRepeats Keyboard.keysDown
-    |> Signal.map (\keypresses ->
-        case (Set.toList keypresses) of
-            [17, 37] -> { emptyUIEvent | action <- MoveNode T.Lift, isKeyboardGenerated <- True }
-            [17, 38] -> { emptyUIEvent | action <- MoveNode T.ShiftUp, isKeyboardGenerated <- True }
-            [17, 39] -> { emptyUIEvent | action <- MoveNode T.Lower, isKeyboardGenerated <- True }
-            [17, 40] -> { emptyUIEvent | action <- MoveNode T.ShiftDown, isKeyboardGenerated <- True }
-            [13, 17] -> { emptyUIEvent | action <- NewItem, isKeyboardGenerated <- True }
-            [17, 46] -> { emptyUIEvent | action <- Confirm 
-                            { emptyDialog |
-                                query   <- "Are you sure you want to delete this item and all sub-items?",
-                                confirm <- DeleteItem
-                            },
-                            isKeyboardGenerated <- True
-                        }
-            [32]     -> { emptyUIEvent | action <- ToggleExpanded Nothing, isKeyboardGenerated <- True }
-            [13]     -> { emptyUIEvent | action <- RenamingItem Nothing, isKeyboardGenerated <- True }
-            [38]     -> { emptyUIEvent | action <- MoveSelection Up, isKeyboardGenerated <- True }
-            [40]     -> { emptyUIEvent | action <- MoveSelection Down , isKeyboardGenerated <- True}
-            _        -> emptyUIEvent
-    )
-    |> Signal.filter ((/=) emptyUIEvent) emptyUIEvent
+keyboardInput : Signal (List Int)
+keyboardInput = Set.toList <~ Signal.dropRepeats Keyboard.keysDown 
 
-load : Signal UIEvent
+load : Signal Event
 load = (decodeState >> \result -> case result of
-    Ok model -> { emptyUIEvent | action <- Confirm
+    Ok model -> { emptyEvent | action <- Confirm
                     { emptyDialog | 
                         query   <- "Are you sure you want to open this file? Any unsaved progress will be lost.",
                         confirm <- let
                             ui = model.ui
-                            in LoadProject { model | ui <- { ui | renamingCurrentNode <- False } } 
+                            in LoadProject { model | ui <- { ui | context <- Default } } 
                     }
                 }
-    Err _    -> emptyUIEvent
+    Err _    -> emptyEvent
     ) <~ fileUpload
 
-uiInput : Signal UIEvent
-uiInput = Signal.mergeMany [uiEvent.signal, keyboardInput, load]
+inputEvent : Signal Input
+inputEvent = Signal.mergeMany [UIEvent <~ uiEvent.signal, KeyboardEvent <~ keyboardInput, UIEvent <~ load]
 
 ---------- MAILBOXES ----------
 
-uiEvent : Signal.Mailbox UIEvent
-uiEvent = Signal.mailbox emptyUIEvent
+uiEvent : Signal.Mailbox Event
+uiEvent = Signal.mailbox emptyEvent
 
 saveFile : Signal.Mailbox ()
 saveFile = Signal.mailbox ()
@@ -389,7 +419,12 @@ errBox = Signal.mailbox ()
 port focus : Signal String
 port focus = Signal.filter ((/=) "") "" 
           <| Signal.dropRepeats 
-          <| Signal.map (\s -> if s.ui.renamingCurrentNode then "#node-" ++ toString s.selectedId else "") state
+          <| Signal.map (\s -> case s.ui.context of
+                                RenamingNode -> "#node-" ++ toString s.selectedId
+                                TitleInput   -> "#title-bar-input"
+                                MainTextArea -> "#textbox"
+                                _ -> "default"
+                        ) state
 
 port save : Signal (String, String)
 port save = let

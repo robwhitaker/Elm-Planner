@@ -26,11 +26,16 @@ var elmPlanner = Elm.fullscreen(Elm.TreePlanner, {
 
 elmPlanner.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
+
+      if(selector === "default") {
+        document.activeElement.blur();
+      } else {
         var nodes = document.querySelectorAll(selector);
         if (nodes.length === 1 && document.activeElement !== nodes[0]) {
             nodes[0].focus();
-            nodes[0].select();
+            if(selector.substring(0,5) === "#node" || selector.substring(0,16) === "#title-bar-input") nodes[0].select();
         }
+      }
     }, 20);
 });
 
