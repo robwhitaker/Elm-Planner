@@ -5,7 +5,7 @@ body {
 }
 
 .selected-unfocused {
-    border: 1px dashed #0accde;
+    border: 1px dashed #0accde !important;
 }
 
 .selected-focused {
@@ -117,8 +117,8 @@ ul {
 }
 
 .arrow-container {
-    width: 10%;
-    min-width: 20px;
+    padding-right: 10px;
+    width: 20px;
     float: left;
     display: inline-block;
 }
@@ -130,6 +130,7 @@ ul {
     padding: 0.5em 1em 0.5em 1em;
     white-space: nowrap;
     border-radius: 0.5em;
+    border: 1px solid #f4f8f9;
 }
 
 .root-node {

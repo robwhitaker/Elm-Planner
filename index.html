@@ -20,10 +20,6 @@ var elmPlanner = Elm.fullscreen(Elm.TreePlanner, {
   getStorage : startingState
 });
 
-
-  // elmPlanner.ports.fileUpload.send(startingState);
-
-
 elmPlanner.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
 
@@ -53,11 +49,22 @@ elmPlanner.ports.save.subscribe(function(saveState) {
 });
 
 var loadButton = null;
+var treePane = null;
 
-function linkUpFileUploader() {
+function scrollToSelection(selector) {
+  var elem;
+  if(!selector) 
+    elem = document.getElementsByClassName("selected-focused")[0] || document.getElementsByClassName("selected-unfocused")[0];
+  if(document.querySelectorAll(selector)[0] || elem)
+    (document.querySelectorAll(selector)[0] || elem).scrollIntoViewIfNeeded();
+  else setTimeout(scrollToSelection, 10); 
+}
+
+function linkUpUI() {
   loadButton = document.getElementById("loadButton");
-  if(!loadButton) {
-    setTimeout(linkUpFileUploader, 50);
+  treePane = document.getElementsByClassName("tree-pane")[0];
+  if(!loadButton || !treePane) {
+    setTimeout(linkUpUI, 50);
   } else {
     loadButton.addEventListener("change", function() {
       var reader = new FileReader();
@@ -66,10 +73,37 @@ function linkUpFileUploader() {
       };
       reader.readAsText(loadButton.files[0]);
     });
+
+    Element.prototype.scrollIntoViewIfNeeded = function (centerIfNeeded) {
+      centerIfNeeded = arguments.length === 0 ? true : !!centerIfNeeded;
+   
+      var parent = treePane,
+          parentComputedStyle = window.getComputedStyle(parent, null),
+          parentBorderTopWidth = parseInt(parentComputedStyle.getPropertyValue('border-top-width')),
+          parentBorderLeftWidth = parseInt(parentComputedStyle.getPropertyValue('border-left-width')),
+          overTop = this.offsetTop - parent.offsetTop < parent.scrollTop,
+          overBottom = (this.offsetTop - parent.offsetTop + this.clientHeight - parentBorderTopWidth) > (parent.scrollTop + parent.clientHeight),
+          overLeft = this.offsetLeft - parent.offsetLeft < parent.scrollLeft + 30,
+          overRight = (this.offsetLeft - parent.offsetLeft + this.clientWidth - parentBorderLeftWidth) > (parent.scrollLeft + parent.clientWidth) * 1.4,
+          alignWithTop = overTop && !overBottom;
+ 
+      if ((overTop || overBottom) && centerIfNeeded) {
+        parent.scrollTop = this.offsetTop - parent.offsetTop - parent.clientHeight / 2 - parentBorderTopWidth + this.clientHeight / 2;
+      }
+   
+      if ((overLeft || overRight) && centerIfNeeded) {
+        parent.scrollLeft = (this.offsetLeft - parent.offsetLeft - parent.clientWidth / 2 - parentBorderLeftWidth + this.offsetWidth / 2) - 30;
+      }
+   
+      if ((overTop || overBottom || overLeft || overRight) && !centerIfNeeded) {
+        this.scrollIntoView(alignWithTop);
+      }
+    };
   }
 }
 
-linkUpFileUploader();
+linkUpUI();
+scrollToSelection();
 
 elmPlanner.ports.setStorage.subscribe(function(stateJSON) {
   localStorage.setItem("elm-planner-state", stateJSON);
@@ -79,12 +113,14 @@ elmPlanner.ports.log.subscribe(function(str) {
   console.log(str);
 });
 
+elmPlanner.ports.scroll.subscribe(function(selector) {
+  scrollToSelection(selector);
+});
+
 document.onkeydown = function(e) {
   if(!e) var e = window.event;
-    var keyCode = e.keyCode || e.which; 
-    if (keyCode == 9) {
-        e.preventDefault();
-      }
+  var keyCode = e.keyCode || e.which; 
+  if ([9,38,40].indexOf(keyCode) > -1) e.preventDefault(); // prevent arrow keys, space, tab
 }
 </script>
 

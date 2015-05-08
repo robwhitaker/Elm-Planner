@@ -328,7 +328,6 @@ view state (w, h) = let
                             { emptyEvent | action <- act }
                         ) << UpdateItem),
                         onFocus uiEvent.address { emptyEvent | setContext <- Just MainTextArea }
-                        --onBlur uiEvent.address { emptyEvent | setContext <- Just Default }
                     ] []
                 ]
             ]
@@ -347,12 +346,13 @@ treeToHtmlTree state (T.Node item children id') = let
                         ] []
                     else 
                         div [
+                            id ("node-" ++ toString id'),
                             classList [
                                 ("item-title", True),
                                 ("selected-focused", id' == state.selectedId && state.ui.context == Default), 
                                 ("selected-unfocused", id' == state.selectedId && (not <| state.ui.context == Default))
                             ],
-                            onClick uiEvent.address { emptyEvent | action <- SelectItem id' }, 
+                            onClick uiEvent.address { emptyEvent | action <- SelectItem id', setContext <- Just Default }, 
                             onDoubleClick uiEvent.address { emptyEvent | action <- RenamingItem (Just id') }
                         ] [text item.title]
         in ul [classList [("root-node", id' == 0)]] [
@@ -425,6 +425,9 @@ port focus = Signal.filter ((/=) "") ""
                                 MainTextArea -> "#textbox"
                                 _ -> "default"
                         ) state
+
+port scroll : Signal String
+port scroll = Signal.map (\s -> "#node-" ++ toString s.selectedId) state
 
 port save : Signal (String, String)
 port save = let
