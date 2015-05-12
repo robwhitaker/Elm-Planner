@@ -139,6 +139,7 @@ update input s = let
             child = T.newNode state.rootNode newItem []
             newTree = T.addChildTo parent child state.rootNode
                       |> T.moveNode T.Lift child
+                      |> T.valueM (\item -> { item | expanded <- True })
             in { state | rootNode <- newTree, selectedId <- T.id child }
 
         NewProject -> emptyModel
