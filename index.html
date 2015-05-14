@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <title>Elm Planner</title>
   <script type="text/javascript" src="elm.js"></script>
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -23,13 +24,14 @@ var elmPlanner = Elm.fullscreen(Elm.TreePlanner, {
 elmPlanner.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
 
-      if(selector === "default") {
+      if(selector[0] === "default") {
         document.activeElement.blur();
       } else {
-        var nodes = document.querySelectorAll(selector);
+        var nodes = document.querySelectorAll(selector[0]);
         if (nodes.length === 1 && document.activeElement !== nodes[0]) {
             nodes[0].focus();
-            if(selector.substring(0,5) === "#node" || selector.substring(0,16) === "#title-bar-input") nodes[0].select();
+            if(selector[1]) nodes[0].value = selector[1];
+            if(selector[0].substring(0,5) === "#node" || selector[0].substring(0,16) === "#title-bar-input") nodes[0].select();
         }
       }
     }, 20);
@@ -66,10 +68,15 @@ function linkUpUI() {
   if(!loadButton || !treePane) {
     setTimeout(linkUpUI, 50);
   } else {
-    loadButton.addEventListener("change", function() {
+    loadButton.addEventListener("change", function loadFile() {
       var reader = new FileReader();
       reader.onload = function(e) {
-        elmPlanner.ports.fileUpload.send(e.target.result.trim());
+        if(e.target.result.trim() !== "") {
+          elmPlanner.ports.fileUpload.send(e.target.result.trim());
+          var wrapper = document.getElementById("loadWrapperForm");
+          if(wrapper) wrapper.firstChild.value = "";
+        }
+
       };
       reader.readAsText(loadButton.files[0]);
     });
@@ -121,6 +128,11 @@ document.onkeydown = function(e) {
   if(!e) var e = window.event;
   var keyCode = e.keyCode || e.which; 
   if ([9,38,40].indexOf(keyCode) > -1) e.preventDefault(); // prevent arrow keys, space, tab
+  if ([78,79,83].indexOf(keyCode) > -1 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) e.preventDefault();
+  if (keyCode == 79 && e.ctrlKey) { 
+    e.preventDefault();
+    loadButton.click();
+  }
 }
 </script>
 

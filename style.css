@@ -2,6 +2,8 @@ body {
     margin: 0;
     padding: 0;
     font-family: arial, verdana, helvetica, sans-serif;
+    background: url("http://elm-lang.org/logo.svg");
+    background-size: 100%;
 }
 
 .selected-unfocused {
@@ -78,8 +80,10 @@ ul {
 .title-bar {
     height: 50px;
     min-width: 700px;
+    padding: 0 1% 0 1%;
     width: 98%;
     margin: 0 auto;
+    background-color: rgba(255,255,255,0.3);
 }
 
 .title-bar input[type=text] {
@@ -89,6 +93,8 @@ ul {
     width: 100%;
     font-size: 24px;
     padding: 0;
+    background-color: rgba(255,255,255,0);
+    text-shadow: 1px 1px white;
 }
 
 .main-container {
@@ -99,7 +105,7 @@ ul {
     content: "";
     overflow: hidden;
     position: relative;
-    min-width: 700px;
+    min-width: 900px;
     background-color: #f4f8f9;
 }
 
@@ -173,9 +179,11 @@ ul {
 }
 
 .options-bar {
-    background-color: #0accde;
+    background-color: rgba(10, 204, 222, 0.7);
     height: 40px;
     padding-left: 0.6%;
+    white-space: nowrap;
+    min-width: 900px;
 }
 
 #loadButton {
@@ -185,12 +193,27 @@ ul {
 .options-bar .icon {
     height: 30px;
     width: 30px;
+    font-size: 1.8em;
     cursor: pointer;
-    margin: 5px 20px 0px 0px;
+    margin-left: 5px;
+    margin-top: 5px;
+    margin-right: 0.5em;
+    float: left;
 }
 
 .options-bar .icon:hover {
-    height: 35px;
-    width: 35px;
-    margin: 0px 15px 0px 0px;
+    height: 30px;
+    width: 30px;
+    margin-top: 3.5px;
+    margin-right: 0.45em;
+    font-size: 2em;
+}
+
+.options-bar .divider {
+    float: left;
+    width: 1px;
+    height: 30px;
+    margin-top: 5px;
+    margin-right: 1em;
+    border-left: 1px groove black;
 }

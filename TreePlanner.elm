@@ -90,10 +90,24 @@ emptyUIState = {
     lastContext = Default
     }
 
+newProjectEvent = { emptyEvent | action <- Confirm 
+                    { emptyDialog | query <- "Are you sure you want to create a new project? Any unsaved progress will be lost.",
+                                    confirm <- NewProject
+                    }
+                }
+
+deleteNodeEvent = { emptyEvent | action <- Confirm 
+                        { emptyDialog |
+                            query   <- "Are you sure you want to delete this item and all sub-items?",
+                            confirm <- DeleteItem
+                        }
+                    }
+
 ---------- UPDATE ----------
 
 type Action 
     = NewItem
+    | SetAllExpanded Bool
     | Confirm Dialog
     | Cancel
     | NewProject
@@ -143,6 +157,8 @@ update input s = let
             in { state | rootNode <- newTree, selectedId <- T.id child }
 
         NewProject -> emptyModel
+
+        SetAllExpanded expanded -> { state | rootNode <- T.map (\item -> { item | expanded <- expanded }) state.rootNode, selectedId <- if expanded then state.selectedId else 0 }
 
         LoadProject model -> model
 
@@ -205,57 +221,53 @@ update input s = let
         _ -> state
 
 keyPressesToEvent : List Int -> State -> Event
-keyPressesToEvent keypresses state = case state.ui.context of
-    Default -> case keypresses of 
-        [17, 37] -> { emptyEvent | action <- MoveNode T.Lift }
-        [17, 38] -> { emptyEvent | action <- MoveNode T.ShiftUp }
-        [17, 39] -> { emptyEvent | action <- MoveNode T.Lower }
-        [17, 40] -> { emptyEvent | action <- MoveNode T.ShiftDown }
-        [13, 17] -> { emptyEvent | action <- NewItem }
-        [46]     -> { emptyEvent | action <- Confirm 
-                        { emptyDialog |
-                            query   <- "Are you sure you want to delete this item and all sub-items?",
-                            confirm <- DeleteItem
-                        }
-                    }
-        [32]     -> { emptyEvent | action <- ToggleExpanded Nothing }
-        [13]     -> { emptyEvent | action <- RenamingItem Nothing }
-        [38]     -> { emptyEvent | action <- MoveSelection Up }
-        [40]     -> { emptyEvent | action <- MoveSelection Down }
-        [27]     -> { emptyEvent | setContext <- Just TitleInput }
-        [9]      -> { emptyEvent | setContext <- Just MainTextArea }
-        _        -> emptyEvent
+keyPressesToEvent keypresses state = case keypresses of
+    [17, 191] -> newProjectEvent
+    _ -> case state.ui.context of
+        Default -> case keypresses of 
+            [17, 37] -> { emptyEvent | action <- MoveNode T.Lift }
+            [17, 38] -> { emptyEvent | action <- MoveNode T.ShiftUp }
+            [17, 39] -> { emptyEvent | action <- MoveNode T.Lower }
+            [17, 40] -> { emptyEvent | action <- MoveNode T.ShiftDown }
+            [13, 17] -> { emptyEvent | action <- NewItem }
+            [46]     -> deleteNodeEvent
+            [32]     -> { emptyEvent | action <- ToggleExpanded Nothing }
+            [13]     -> { emptyEvent | action <- RenamingItem Nothing }
+            [38]     -> { emptyEvent | action <- MoveSelection Up }
+            [40]     -> { emptyEvent | action <- MoveSelection Down }
+            [27]     -> { emptyEvent | setContext <- Just TitleInput }
+            [9]      -> { emptyEvent | setContext <- Just MainTextArea }
+            _        -> emptyEvent
 
-    ConfirmDialog -> case keypresses of
-        [13]     -> { emptyEvent | action <- 
-                            (Maybe.withDefault emptyDialog state.ui.confirmationDialog).confirm, setContext <- Just Default }
-        [27]     -> { emptyEvent | action <- 
-                            (Maybe.withDefault emptyDialog state.ui.confirmationDialog).cancel, setContext <- Just Default }
-        _        -> emptyEvent
+        ConfirmDialog -> case keypresses of
+            [13]     -> { emptyEvent | action <- 
+                                (Maybe.withDefault emptyDialog state.ui.confirmationDialog).confirm, setContext <- Just Default }
+            [27]     -> { emptyEvent | action <- 
+                                (Maybe.withDefault emptyDialog state.ui.confirmationDialog).cancel, setContext <- Just Default }
+            _        -> emptyEvent
 
-    TitleInput -> case keypresses of
-        [9]      -> { emptyEvent | setContext <- Just state.ui.lastContext }
-        [13]     -> { emptyEvent | setContext <- Just state.ui.lastContext }
-        [27]     -> { emptyEvent | setContext <- Just state.ui.lastContext }
-        _        -> emptyEvent
+        TitleInput -> case keypresses of
+            [9]      -> { emptyEvent | setContext <- Just state.ui.lastContext }
+            [13]     -> { emptyEvent | setContext <- Just state.ui.lastContext }
+            [27]     -> { emptyEvent | setContext <- Just state.ui.lastContext }
+            _        -> emptyEvent
 
-    MainTextArea -> case keypresses of
-        [9]          -> { emptyEvent | setContext <- Just Default }
-        [17, 38]     -> { emptyEvent | action <- MoveSelection Up }
-        [17, 40]     -> { emptyEvent | action <- MoveSelection Down }
-        [13, 17]     -> { emptyEvent | action <- NewItem }
-        [27]         -> { emptyEvent | setContext <- Just TitleInput }
-        _        -> emptyEvent
+        MainTextArea -> case keypresses of
+            [9]          -> { emptyEvent | setContext <- Just Default }
+            [17, 38]     -> { emptyEvent | action <- MoveSelection Up }
+            [17, 40]     -> { emptyEvent | action <- MoveSelection Down }
+            [13, 17]     -> { emptyEvent | action <- NewItem }
+            [27]         -> { emptyEvent | setContext <- Just TitleInput }
+            _        -> emptyEvent
 
-    RenamingNode -> case keypresses of
-        [9]          -> { emptyEvent | setContext <- Just MainTextArea }
-        [13]         -> { emptyEvent | setContext <- Just Default }
-        [38]         -> { emptyEvent | setContext <- Just Default }
-        [40]         -> { emptyEvent | setContext <- Just Default }
-        _            -> emptyEvent
+        RenamingNode -> case keypresses of
+            [9]          -> { emptyEvent | setContext <- Just MainTextArea }
+            [13]         -> { emptyEvent | setContext <- Just Default }
+            [38]         -> { emptyEvent | setContext <- Just Default }
+            [40]         -> { emptyEvent | setContext <- Just Default }
+            _            -> emptyEvent
 
-
-    _ -> emptyEvent
+        _ -> emptyEvent
 
 ---------- VIEW ----------
 
@@ -287,27 +299,35 @@ view state (w, h) = let
         div [class "title-bar"] [
             input [
                 id "title-bar-input",
+                if state.ui.context == TitleInput then style [] else value state.projectTitle,
                 type' "text", 
                 on "input" targetValue (Signal.message uiEvent.address << (\act ->
                     { emptyEvent | action <- act }
                 ) << RenameProject),
                 onFocus uiEvent.address { emptyEvent | setContext <- Just TitleInput },
-                --onBlur uiEvent.address { emptyEvent | setContext <- Just Default },
-                value state.projectTitle,
                 placeholder "Untitled Project"
             ] []
         ],
         div [class "options-bar", onClick uiEvent.address {emptyEvent | setContext <- Just Default } ] [
-            img [onClick uiEvent.address { emptyEvent | action <- Confirm 
-                    { emptyDialog | query <- "Are you sure you want to create a new project? Any unsaved progress will be lost.",
-                                    confirm <- NewProject
-                    }
-                }, src "new.png", class "icon", alt "New Project", title "New Project"] [],
-            img [onClick saveFile.address (), src "save.png", class "icon", alt "Save Project", title "Save Project"] [],
+            i [class "fa fa-file-text-o icon", onClick uiEvent.address newProjectEvent, alt "New Project (Ctrl+/)", title "New Project (Ctrl+/)"] [],
+            i [class "fa fa-download icon", onClick saveFile.address (), alt "Save Project  (Ctrl+S)", title "Save Project (Ctrl+S)"] [],
             label [for "loadButton"] [
-                input  [type' "file", id "loadButton"] [text "Load"],
-                img [class "icon", src "load.png", alt "Load Project", title "Load Project"] []
-            ] 
+                Html.form [id "loadWrapperForm"] [ 
+                    input  [type' "file", id "loadButton"] [text "Load"],
+                    i [class "fa fa-upload icon", alt "Load Project (Ctrl+O)", title "Load Project (Ctrl+O)"] []
+                ]
+            ],
+            div [class "divider"] [],
+            i [class "fa fa-plus-square-o icon", onClick uiEvent.address { emptyEvent | action <- NewItem, setContext <- Just Default }, alt "New Node (Ctrl+Return)", title "New Node (Ctrl+Return)" ] [], 
+            i [class "fa fa-trash-o icon", onClick uiEvent.address deleteNodeEvent, alt "Delete Node (Del)", title "Delete Node (Del)" ] [], 
+            div [class "divider"] [],
+            i [class "fa fa-arrow-left icon", onClick uiEvent.address { emptyEvent | action <- MoveNode T.Lift, setContext <- Just Default }, alt "Move Left (Ctrl+Left)", title "Move Left (Ctrl+Left)" ] [], 
+            i [class "fa fa-arrow-up icon", onClick uiEvent.address { emptyEvent | action <- MoveNode T.ShiftUp, setContext <- Just Default }, alt "Move Up (Ctrl+Up)", title "Move Up (Ctrl+Up)" ] [], 
+            i [class "fa fa-arrow-down icon", onClick uiEvent.address { emptyEvent | action <- MoveNode T.ShiftDown, setContext <- Just Default }, alt "Move Down (Ctrl+Down)", title "Move Down (Ctrl+Down)" ] [], 
+            i [class "fa fa-arrow-right icon", onClick uiEvent.address { emptyEvent | action <- MoveNode T.Lower, setContext <- Just Default }, alt "Move Right (Ctrl+Right)", title "Move Right (Ctrl+Right)" ] [],
+            div [class "divider"] [],
+            i [class "fa fa-caret-square-o-up icon", onClick uiEvent.address { emptyEvent | action <- SetAllExpanded False, setContext <- Just Default }, alt "Collapse All", title "Collapse All" ] [],
+            i [class "fa fa-caret-square-o-down icon", onClick uiEvent.address { emptyEvent | action <- SetAllExpanded True, setContext <- Just Default }, alt "Expand All", title "Expand All" ] []
         ],
         div [
             class "main-container",
@@ -341,8 +361,8 @@ treeToHtmlTree state (T.Node item children id') = let
                     then 
                         input [ 
                             type' "text",
-                            value item.title,
                             id ("node-" ++ toString id'), 
+                            onClick uiEvent.address { emptyEvent | action <- SelectItem id', setContext <- Just RenamingNode }, 
                             on "input" targetValue (Signal.message uiEvent.address << (\act -> { emptyEvent | action <- act }) << UpdateItemTitle)
                         ] []
                     else 
@@ -404,6 +424,9 @@ load = (decodeState >> \result -> case result of
 inputEvent : Signal Input
 inputEvent = Signal.mergeMany [UIEvent <~ uiEvent.signal, KeyboardEvent <~ keyboardInput, UIEvent <~ load]
 
+sendSave : Signal ()
+sendSave = Signal.merge saveFile.signal <| Signal.filterMap (\keys -> if keys == [17, 83] then Just () else Nothing) () keyboardInput
+
 ---------- MAILBOXES ----------
 
 uiEvent : Signal.Mailbox Event
@@ -417,14 +440,14 @@ errBox = Signal.mailbox ()
 
 ---------- PORTS ----------
 
-port focus : Signal String
-port focus = Signal.filter ((/=) "") "" 
+port focus : Signal (String, Maybe String)
+port focus = Signal.filter ((/=) "" << fst) ("", Nothing) 
           <| Signal.dropRepeats 
           <| Signal.map (\s -> case s.ui.context of
-                                RenamingNode -> "#node-" ++ toString s.selectedId
-                                TitleInput   -> "#title-bar-input"
-                                MainTextArea -> "#textbox"
-                                _ -> "default"
+                                RenamingNode -> ("#node-" ++ toString s.selectedId, Maybe.map (.title << T.value) <| T.nodeById s.selectedId s.rootNode)
+                                TitleInput   -> ("#title-bar-input", Just s.projectTitle)
+                                MainTextArea -> ("#textbox", Nothing)
+                                _ -> ("default", Nothing)
                         ) state
 
 port scroll : Signal String
@@ -434,7 +457,7 @@ port save : Signal (String, String)
 port save = let
     fileName = String.words >> String.join "_"
     in
-        Signal.sampleOn saveFile.signal
+        Signal.sampleOn sendSave
         <| Signal.map (\s -> (,)
                              (if s.projectTitle == "" then "untitled" else fileName s.projectTitle) 
                              (encodeState s)
