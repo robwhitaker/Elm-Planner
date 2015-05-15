@@ -18,23 +18,32 @@ var startingState = localStorage.getItem("elm-planner-state") || "";
 
 var elmPlanner = Elm.fullscreen(Elm.TreePlanner, {
   fileUpload : "",
-  getStorage : startingState
+  getStorage : startingState,
+  ticker : false
 });
 
-elmPlanner.ports.focus.subscribe(function(selector) {
-    setTimeout(function() {
+elmPlanner.ports.focus.subscribe(function(nodeData) {
+    var selector = nodeData[0];
+    var content  = nodeData[1];
 
-      if(selector[0] === "default") {
-        document.activeElement.blur();
-      } else {
-        var nodes = document.querySelectorAll(selector[0]);
-        if (nodes.length === 1 && document.activeElement !== nodes[0]) {
-            nodes[0].focus();
-            if(selector[1]) nodes[0].value = selector[1];
-            if(selector[0].substring(0,5) === "#node" || selector[0].substring(0,16) === "#title-bar-input") nodes[0].select();
+    if(selector === "default") document.activeElement.blur()
+    else if(selector.substring(0,5) === "#node") setTimeout(function() {
+        var nodes = document.querySelectorAll(selector);
+        if(nodes.length === 1 && document.activeElement !== nodes[0]) {
+          nodes[0].focus();
+          nodes[0].value = content || nodes[0].value;
+          nodes[0].select();
         }
-      }
-    }, 20);
+      }, 20);
+    else {
+      var nodes = document.querySelectorAll(selector);
+        if(nodes.length === 1 && document.activeElement !== nodes[0]) {
+          nodes[0].focus();
+          nodes[0].value = content || nodes[0].value;
+          if(selector.substring(0,6) === "#title") nodes[0].select();
+        }
+    }
+
 });
 
 elmPlanner.ports.save.subscribe(function(saveState) {
@@ -52,6 +61,7 @@ elmPlanner.ports.save.subscribe(function(saveState) {
 
 var loadButton = null;
 var treePane = null;
+var textBox = null;
 
 function scrollToSelection(selector) {
   var elem;
@@ -65,7 +75,8 @@ function scrollToSelection(selector) {
 function linkUpUI() {
   loadButton = document.getElementById("loadButton");
   treePane = document.getElementsByClassName("tree-pane")[0];
-  if(!loadButton || !treePane) {
+  textBox = document.getElementById("textbox");
+  if(!loadButton || !treePane || !textBox) {
     setTimeout(linkUpUI, 50);
   } else {
     loadButton.addEventListener("change", function loadFile() {
@@ -80,6 +91,8 @@ function linkUpUI() {
       };
       reader.readAsText(loadButton.files[0]);
     });
+
+    elmPlanner.ports.ticker.send(true);
 
     Element.prototype.scrollIntoViewIfNeeded = function (centerIfNeeded) {
       centerIfNeeded = arguments.length === 0 ? true : !!centerIfNeeded;
@@ -116,6 +129,10 @@ elmPlanner.ports.setStorage.subscribe(function(stateJSON) {
   localStorage.setItem("elm-planner-state", stateJSON);
 });
 
+elmPlanner.ports.textBoxText.subscribe(function(text) {
+  textBox.value = text;
+});
+
 elmPlanner.ports.log.subscribe(function(str) {
   console.log(str);
 });
@@ -126,8 +143,11 @@ elmPlanner.ports.scroll.subscribe(function(selector) {
 
 document.onkeydown = function(e) {
   if(!e) var e = window.event;
-  var keyCode = e.keyCode || e.which; 
-  if ([9,38,40].indexOf(keyCode) > -1) e.preventDefault(); // prevent arrow keys, space, tab
+  var keyCode = e.keyCode || e.which;
+  if(keyCode == 9 || keyCode == 20) e.preventDefault(); 
+  if ([37,38,39,40].indexOf(keyCode) > -1 
+      && [textBox, document.getElementById("title-bar-input")].indexOf(document.activeElement) === -1
+      && document.activeElement.id.substring(0,4) !== "node") e.preventDefault(); // prevent arrow keys, space, tab
   if ([78,79,83].indexOf(keyCode) > -1 && (navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey)) e.preventDefault();
   if (keyCode == 79 && e.ctrlKey) { 
     e.preventDefault();

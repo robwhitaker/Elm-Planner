@@ -35,7 +35,8 @@ type alias State = {
 type alias UIState = {
     confirmationDialog : Maybe Dialog,
     context : Context,
-    lastContext : Context
+    lastContext : Context,
+    lastSelectedId : Int
 }
 
 type alias Item = {
@@ -87,7 +88,8 @@ emptyUIState : UIState
 emptyUIState = {
     confirmationDialog = Nothing,
     context = Default,
-    lastContext = Default
+    lastContext = Default,
+    lastSelectedId = -1
     }
 
 newProjectEvent = { emptyEvent | action <- Confirm 
@@ -142,7 +144,9 @@ update input s = let
         state = { s | ui <- { ui' | context <- newContext, 
                                     lastContext <- if newContext /= oldContext 
                                                    then oldContext 
-                                                   else s.ui.lastContext } 
+                                                   else s.ui.lastContext,
+                                    lastSelectedId <- s.selectedId
+                            } 
                 } 
         ui = state.ui
 
@@ -254,9 +258,6 @@ keyPressesToEvent keypresses state = case keypresses of
 
         MainTextArea -> case keypresses of
             [9]          -> { emptyEvent | setContext <- Just Default }
-            [17, 38]     -> { emptyEvent | action <- MoveSelection Up }
-            [17, 40]     -> { emptyEvent | action <- MoveSelection Down }
-            [13, 17]     -> { emptyEvent | action <- NewItem }
             [27]         -> { emptyEvent | setContext <- Just TitleInput }
             _        -> emptyEvent
 
@@ -344,7 +345,6 @@ view state (w, h) = let
                     textarea [
                         id "textbox",
                         placeholder "...",
-                        value (T.value (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)).content,
                         on "input" targetValue (Signal.message uiEvent.address << (\act -> 
                             { emptyEvent | action <- act }
                         ) << UpdateItem),
@@ -453,6 +453,12 @@ port focus = Signal.filter ((/=) "" << fst) ("", Nothing)
 port scroll : Signal String
 port scroll = Signal.map (\s -> "#node-" ++ toString s.selectedId) state
 
+port textBoxText : Signal String
+port textBoxText = let
+    isSelection = Signal.map (\s -> s.selectedId /= s.ui.lastSelectedId) state 
+    in Signal.sampleOn (Signal.merge (Signal.filter identity False isSelection) ticker)
+    <| Signal.map (\s -> Maybe.withDefault "" <| Maybe.map (.content << T.value) <| T.nodeById s.selectedId s.rootNode) state
+
 port save : Signal (String, String)
 port save = let
     fileName = String.words >> String.join "_"
@@ -464,6 +470,8 @@ port save = let
                       ) state
         
 port getStorage : String
+
+port ticker : Signal Bool
 
 port setStorage : Signal String
 port setStorage = Signal.map encodeState state 
