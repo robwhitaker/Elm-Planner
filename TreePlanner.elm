@@ -46,9 +46,10 @@ type alias Item = {
 }
 
 type alias Dialog = {
-    query   : String,
-    confirm : Action,
-    cancel  : Action
+    query          : String,
+    confirm        : Action,
+    cancel         : Action,
+    selectedOption : Int
 }
 
 type alias Event = {
@@ -75,7 +76,8 @@ emptyDialog : Dialog
 emptyDialog = {
     query = "",
     confirm = NoOp,
-    cancel = Cancel
+    cancel = Cancel, 
+    selectedOption = 0
     }
 
 emptyEvent : Event
@@ -112,6 +114,7 @@ type Action
     | SetAllExpanded Bool
     | Confirm Dialog
     | Cancel
+    | ChangeConfirmSelection Int
     | NewProject
     | UpdateItemTitle String
     | LoadProject State
@@ -150,6 +153,8 @@ update input s = let
                 } 
         ui = state.ui
 
+        confirmationDialog = state.ui.confirmationDialog
+
         selectableNodes = T.mapN (\(T.Node value children id) -> if not value.expanded then (T.Node value [] id) else (T.Node value children id)) state.rootNode
     in case event.action of
         NewItem -> let
@@ -171,6 +176,8 @@ update input s = let
         Confirm dialog -> { state | ui <- { ui | confirmationDialog <- Just dialog, context <- ConfirmDialog } }
 
         Cancel -> { state | ui <- { ui | confirmationDialog <- Nothing, context <- Default } }
+
+        ChangeConfirmSelection selection -> { state | ui <- { ui | confirmationDialog <- Maybe.map (\cd -> { cd | selectedOption <- selection } ) confirmationDialog } }
 
         SelectItem selectedId -> { state | selectedId <- selectedId }
 
@@ -243,12 +250,15 @@ keyPressesToEvent keypresses state = case keypresses of
             [9]      -> { emptyEvent | setContext <- Just MainTextArea }
             _        -> emptyEvent
 
-        ConfirmDialog -> case keypresses of
-            [13]     -> { emptyEvent | action <- 
-                                (Maybe.withDefault emptyDialog state.ui.confirmationDialog).confirm, setContext <- Just Default }
-            [27]     -> { emptyEvent | action <- 
-                                (Maybe.withDefault emptyDialog state.ui.confirmationDialog).cancel, setContext <- Just Default }
-            _        -> emptyEvent
+        ConfirmDialog -> let
+            dialog = Maybe.withDefault emptyDialog state.ui.confirmationDialog
+            confirmAction = (if dialog.selectedOption == 0 then .confirm else .cancel) dialog
+            in case keypresses of
+                [13]     -> { emptyEvent | action <- confirmAction, setContext <- Just Default }
+                [27]     -> { emptyEvent | action <- dialog.cancel, setContext <- Just Default }
+                [37]     -> { emptyEvent | action <- ChangeConfirmSelection 0 }
+                [39]     -> { emptyEvent | action <- ChangeConfirmSelection 1 }
+                _        -> emptyEvent
 
         TitleInput -> case keypresses of
             [9]      -> { emptyEvent | setContext <- Just state.ui.lastContext }
@@ -288,11 +298,11 @@ view state (w, h) = let
             h2 [] [text dialog.query],
             div [] [
                 button [
-                    class "confirm-button",
+                    classList [("confirm-button", dialog.selectedOption == 0), ("cancel-button", dialog.selectedOption /= 0)],
                     onClick uiEvent.address { emptyEvent | action <- dialog.confirm, setContext <- Just Default }
                 ] [text "Confirm"],
                 button [
-                    class "cancel-button",
+                    classList [("confirm-button", dialog.selectedOption /= 0), ("cancel-button", dialog.selectedOption == 0)],
                     onClick uiEvent.address { emptyEvent | action <- dialog.cancel, setContext <- Just Default }
                 ] [text "Cancel"]
             ]

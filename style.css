@@ -56,13 +56,20 @@ body {
     margin: 1em 1em 0 0;
 }
 
+.confirm-dialog button.cancel-button {
+    border: 1px solid #aaa;
+    color: #999;
+    margin: 1em 1em 0 0;
+}
+
 .confirm-button:hover {
     background-color: #08bbcc;
 }
 
-.cancel-button:hover {
+.confirm-dialog button.cancel-button:hover {
     background-color: #ccc;
     color: black;
+    border: 1px solid black;
 }
 
 .no-display {
