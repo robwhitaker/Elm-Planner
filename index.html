@@ -47,16 +47,21 @@ elmPlanner.ports.focus.subscribe(function(nodeData) {
 });
 
 elmPlanner.ports.save.subscribe(function(saveState) {
-  var pom = document.createElement('a');
-  pom.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(saveState[1]));
-  pom.setAttribute('download', saveState[0].trim() + ".elmplanner");
+  if(navigator.msSaveBlob) {
+    var blob_object = new Blob([saveState[1]], {type: "text/json;charset=utf-8"});
+    return navigator.msSaveBlob(blob_object, saveState[0].trim() + ".elmplanner");
+  } else {
+    var pom = document.createElement('a');
+    pom.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(saveState[1]));
+    pom.setAttribute('download', saveState[0].trim() + ".elmplanner");
 
-  pom.style.display = 'none';
-  document.body.appendChild(pom);
+    pom.style.display = 'none';
+    document.body.appendChild(pom);
 
-  pom.click();
+    pom.click();
 
-  document.body.removeChild(pom);
+    document.body.removeChild(pom);
+  }
 });
 
 var loadButton = null;
