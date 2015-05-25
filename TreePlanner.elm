@@ -20,6 +20,8 @@ import Keyboard
 import Tree as T
 import Tree exposing (Tree, NodeMovement)
 
+import Markdown
+
 import Debug
 
 ---------- MODEL ----------
@@ -286,7 +288,7 @@ view : State -> (Int, Int) -> Html
 view state (w, h) = let
         dialog = Maybe.withDefault emptyDialog state.ui.confirmationDialog
         showConfirmDialog = state.ui.context == ConfirmDialog
-    in div [] [
+    in div [class "wrapper"] [
         div [
             classList [("modal-background", True), ("no-display", not showConfirmDialog)],
             onClick uiEvent.address { emptyEvent | action <- dialog.cancel, setContext <- Just Default }
@@ -330,6 +332,8 @@ view state (w, h) = let
             ],
             div [class "divider"] [],
             i [class "fa fa-plus-square-o icon", onClick uiEvent.address { emptyEvent | action <- NewItem, setContext <- Just Default }, alt "New Node (Ctrl+Return)", title "New Node (Ctrl+Return)" ] [], 
+            i [class "fa fa-pencil icon", onClick uiEvent.address { emptyEvent | action <- RenamingItem Nothing }, alt "Rename Node (Return)", title "Rename Node (Return)"] [],
+            i [class "fa fa-arrows-v icon", onClick uiEvent.address { emptyEvent | action <- ToggleExpanded Nothing }, alt "Toggle Expanded (Space)", title "Toggle Expanded (Space)"] [],
             i [class "fa fa-trash-o icon", onClick uiEvent.address deleteNodeEvent, alt "Delete Node (Del)", title "Delete Node (Del)" ] [], 
             div [class "divider"] [],
             i [class "fa fa-arrow-left icon", onClick uiEvent.address { emptyEvent | action <- MoveNode T.Lift, setContext <- Just Default }, alt "Move Left (Ctrl+Left)", title "Move Left (Ctrl+Left)" ] [], 
@@ -342,7 +346,7 @@ view state (w, h) = let
         ],
         div [
             class "main-container",
-            style [("height", toString (h-90) ++ "px")]
+            style [("height", toString (h-140) ++ "px")]
         ] [
             div [
                 class "tree-pane",
@@ -362,6 +366,12 @@ view state (w, h) = let
                     ] []
                 ]
             ]
+        ],
+        footer [] [
+            Markdown.toHtml """ Created by <a href="http://robertjwhitaker.com" target="_blank">Robert J. Whitaker</a>
+
+*This project was programmed in <a href="http://elm-lang.org" target="_blank">Elm</a>. Check out the <a href="https://github.com/robwhitaker/Elm-Tree-Planner" target="_blank">source</a>.*
+"""
         ]
     ]
 

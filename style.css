@@ -86,7 +86,7 @@ ul {
 
 .title-bar {
     height: 50px;
-    min-width: 700px;
+    /*min-width: 700px;*/
     padding: 0 1% 0 1%;
     width: 98%;
     margin: 0 auto;
@@ -112,7 +112,7 @@ ul {
     content: "";
     overflow: hidden;
     position: relative;
-    min-width: 900px;
+    /*min-width: 900px;*/
     background-color: #f4f8f9;
 }
 
@@ -191,7 +191,7 @@ ul {
     height: 40px;
     padding-left: 0.6%;
     white-space: nowrap;
-    min-width: 900px;
+    /*min-width: 900px;*/
 }
 
 #loadButton {
@@ -207,6 +207,7 @@ ul {
     margin-top: 5px;
     margin-right: 0.5em;
     float: left;
+    text-align: center;
 }
 
 .options-bar .icon:hover {
@@ -224,4 +225,27 @@ ul {
     margin-top: 5px;
     margin-right: 1em;
     border-left: 1px groove black;
+}
+
+footer {
+    height: 50px;
+    overflow: hidden;
+    background-color: rgba(10, 204, 222, 1);
+    text-align: center;
+    font-size: 12px;
+    line-height: 6px;
+    color: #222;
+}
+
+footer a {
+    text-decoration: none;
+    color: #eee;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+.wrapper {
+    min-width: 760px;
 }
