@@ -1,4 +1,4 @@
-module Utils where
+module Util.List where
  
 import List
  

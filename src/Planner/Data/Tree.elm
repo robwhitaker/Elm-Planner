@@ -1,7 +1,7 @@
-module Tree where
+module Planner.Data.Tree where
 
 import List
-import Utils
+import Util.List exposing (takeWhile, dropWhile)
 
 type Tree a = Empty | Node a (List (Tree a)) Int
 type ShiftDirection = Up | Down
@@ -126,7 +126,7 @@ liftNode node root = let
     parent = List.head <| List.map fst <| List.filter (snd >> List.member node) parentsAndKids
     in case parent of
         Just p  -> Node (value grandparent) 
-                        ((Utils.takeWhile ((/=) p) parents) ++ [removeNode node p, node] ++ (List.drop 1 <| Utils.dropWhile ((/=) p) parents))
+                        ((takeWhile ((/=) p) parents) ++ [removeNode node p, node] ++ (List.drop 1 <| dropWhile ((/=) p) parents))
                         (id grandparent)
         Nothing -> Node (value root) (List.map (liftNode node) (children root)) (id root)
 
@@ -134,11 +134,11 @@ lowerNode : Tree a -> Tree a -> Tree a
 lowerNode node root = 
     if List.member node (children root)
     then let
-        nodePosition = (List.length (children root)) - (List.length <| Utils.dropWhile ((/=) node) (children root))
+        nodePosition = (List.length (children root)) - (List.length <| dropWhile ((/=) node) (children root))
         elementBeforeNode = if nodePosition == 0 then Nothing else List.head <| List.drop (nodePosition-1) (children root)
         in case elementBeforeNode of
             Just elem -> Node (value root) 
-                              (Utils.takeWhile ((/=) elem) (children root) ++ [addChild node elem] ++ (List.drop 1 <| Utils.dropWhile ((/=) node) (children root))) 
+                              (takeWhile ((/=) elem) (children root) ++ [addChild node elem] ++ (List.drop 1 <| dropWhile ((/=) node) (children root))) 
                               (id root)
             Nothing -> root
     else Node (value root) (List.map (lowerNode node) (children root)) (id root)

@@ -1,12 +1,22 @@
-module Update where
+module Planner.Update where
 
-import Model exposing (..)
-import Tree as T
+import Planner.Model exposing (..)
+import Planner.Data.Tree as T
+import Planner.UI.Context as Context
+import Planner.UI.Context exposing (..)
+import Planner.Event as Event
+import Planner.Event exposing (..)
+import Planner.Component.Event exposing (newProjectEvent, deleteNodeEvent)
+import Planner.UI.Dialog as Dialog
+import Planner.UI.DialogBuilder as DialogBuilder
+import Util.List exposing (takeWhile, dropWhile)
+
 import Maybe
+import Maybe exposing (andThen)
 
 ---- UPDATE ----
 
-update : Input -> State dModel dAct -> State dModel dAct
+update : Input -> State -> State
 update input s = let
         event = case input of
             KeyboardEvent keys -> keyPressesToEvent keys s
@@ -24,10 +34,11 @@ update input s = let
                 } 
         ui = state.ui
 
-        confirmationDialog = state.ui.confirmationDialog
+        dialog = state.ui.dialog
 
         selectableNodes = T.mapN (\(T.Node value children id) -> if not value.expanded then (T.Node value [] id) else (T.Node value children id)) state.rootNode
     in case event.action of
+
         NewItem -> let
             parent = T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode
             child = T.newNode state.rootNode newItem []
@@ -40,23 +51,26 @@ update input s = let
 
         SetAllExpanded expanded -> { state | rootNode <- T.map (\item -> { item | expanded <- expanded }) state.rootNode, selectedId <- if expanded then state.selectedId else 0 }
 
-        LoadProject model -> model
+        --TODO : Add confirm dialog before loading new model
+        LoadProject modelJSON -> 
+            (decodeState >> \result -> case result of
+                Ok model -> model
+                Err _    -> emptyModel
+            ) modelJSON
 
         UpdateItemTitle newTitle -> { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newTitle }) state.selectedId state.rootNode }
 
-        Confirm dialog -> { state | ui <- { ui | confirmationDialog <- Just dialog, context <- ConfirmDialog } }
+        Event.Dialog (Dialog.HideWith act) -> update (UIEvent act) { state | ui <- { ui | dialog <- Nothing } }
 
-        Cancel -> { state | ui <- { ui | confirmationDialog <- Nothing, context <- Default } }
-
-        ChangeConfirmSelection selection -> { state | ui <- { ui | confirmationDialog <- Maybe.map (\cd -> { cd | selectedOption <- selection } ) confirmationDialog } }
+        Event.Dialog dialogAction -> { state | ui <- { ui | dialog <- Dialog.update dialogAction state.ui.dialog } }
 
         SelectItem selectedId -> { state | selectedId <- selectedId }
 
         RenameProject newName -> { state | projectTitle <- newName }
 
         MoveSelection dir -> case dir of
-            Up -> { state | selectedId <- T.id <| Maybe.withDefault (T.Node newItem [] 0) <| List.head <| List.reverse <| Utils.takeWhile ((/=) state.selectedId << T.id) (T.flatten selectableNodes) }
-            Down -> { state | selectedId <- T.id <| Maybe.withDefault (T.Node newItem [] state.selectedId) <| List.head <| List.drop 1 <| Utils.dropWhile ((/=) state.selectedId << T.id) (T.flatten selectableNodes) }
+            Up -> { state | selectedId <- T.id <| Maybe.withDefault (T.Node newItem [] 0) <| List.head <| List.reverse <| takeWhile ((/=) state.selectedId << T.id) (T.flatten selectableNodes) }
+            Down -> { state | selectedId <- T.id <| Maybe.withDefault (T.Node newItem [] state.selectedId) <| List.head <| List.drop 1 <| dropWhile ((/=) state.selectedId << T.id) (T.flatten selectableNodes) }
 
         RenameItem newName -> 
             { state | rootNode <- T.mapToNodeById (\item -> { item | title <- newName }) state.selectedId state.rootNode, 
@@ -72,11 +86,11 @@ update input s = let
 
         DeleteItem -> let
                 previousNode = Maybe.withDefault (T.dummyNode newItem) <| List.head <| List.reverse 
-                               <| Utils.takeWhile ((/=) (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)) (T.flatten selectableNodes)
+                               <| takeWhile ((/=) (T.nodeByIdWithDefault (T.dummyNode newItem) state.selectedId state.rootNode)) (T.flatten selectableNodes)
                 prevId = if T.id previousNode < 0 then 0 else T.id previousNode
             in { state | rootNode <- T.removeNodeById state.selectedId state.rootNode, 
                          selectedId <- prevId, 
-                         ui <- { ui | confirmationDialog <- Nothing }
+                         ui <- { ui | dialog <- Nothing }
                }
 
         MoveNode movement -> case movement of
@@ -104,7 +118,7 @@ update input s = let
 
 ---- KEYPRESS MAP ----
 
-keyPressesToEvent : List Int -> State dModel dAct -> Event
+keyPressesToEvent : List Int -> State -> Event
 keyPressesToEvent keypresses state = case keypresses of
     [17, 191] -> newProjectEvent
     _ -> case state.ui.context of
@@ -123,15 +137,10 @@ keyPressesToEvent keypresses state = case keypresses of
             [9]      -> { emptyEvent | setContext <- Just MainTextArea }
             _        -> emptyEvent
 
-        ConfirmDialog -> let
-            dialog = Maybe.withDefault emptyDialog state.ui.confirmationDialog
-            confirmAction = (if dialog.selectedOption == 0 then .confirm else .cancel) dialog
-            in case keypresses of
-                [13]     -> { emptyEvent | action <- confirmAction, setContext <- Just Default }
-                [27]     -> { emptyEvent | action <- dialog.cancel, setContext <- Just Default }
-                [37]     -> { emptyEvent | action <- ChangeConfirmSelection 0 }
-                [39]     -> { emptyEvent | action <- ChangeConfirmSelection 1 }
-                _        -> emptyEvent
+        Context.Dialog ->
+            Maybe.withDefault 
+                emptyEvent 
+                <| state.ui.dialog `andThen` (\dialog -> Just <| dialog.keyboardInputMap keypresses dialog.model)
 
         TitleInput -> case keypresses of
             [9]      -> { emptyEvent | setContext <- Just state.ui.lastContext }

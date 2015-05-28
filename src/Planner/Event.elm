@@ -1,18 +1,19 @@
-module Event where
+module Planner.Event where
 
-import Context exposing (..)
+import Planner.UI.Context exposing (Context)
+import Planner.Data.Tree exposing (NodeMovement)
+import Planner.UI.Dialog as Dialog
 
 ---- ADTs ----
 
-type Action 
+type Action
     = NewItem
     | SetAllExpanded Bool
-    | Confirm Dialog
-    | Cancel
-    | ChangeConfirmSelection Int
+    | Dialog (Dialog.Action Event)
     | NewProject
     | UpdateItemTitle String
-    | LoadProject String -- this used to take State; fix elsewhere.
+    | SaveProject
+    | LoadProject String
     | SelectItem Int
     | MoveSelection SelectionMovement
     | RenameItem String
@@ -26,6 +27,7 @@ type Action
 
 type SelectionMovement = Up | Down
 
+
 type Input = KeyboardEvent (List Int) | UIEvent Event
 
 ---- EVENT MODEL ----
@@ -35,8 +37,9 @@ type alias Event = {
     setContext : Maybe Context
 }
 
-emptyEvent : Event
+emptyEvent : Event 
 emptyEvent = {
     action = NoOp,
     setContext = Nothing
     }
+

@@ -1,9 +1,9 @@
-module Context where
+module Planner.UI.Context where
 
 type Context 
     = Default 
     | TextInput 
-    | ConfirmDialog 
+    | Dialog 
     | TitleInput 
     | MainTextArea 
     | RenamingNode

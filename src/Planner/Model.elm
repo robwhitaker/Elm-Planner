@@ -1,9 +1,9 @@
-module Model where
+module Planner.Model where
 
-import Dialog exposing (Dialog)
-import Tree as T
-import Tree exposing (Tree)
-import Context exposing (..)
+import Planner.Event as Event
+import Planner.Data.Tree as Tree
+import Planner.UI.Context as Context
+import Planner.UI.Dialog as Dialog
 
 import Json.Decode as Decoder
 import Json.Decode exposing ((:=))
@@ -11,17 +11,17 @@ import Json.Encode as Encoder
 
 ---- MODELS ----
 
-type alias State dModel dAct = {
-    ui : UIState dModel dAct,
-    rootNode : Tree Item,
+type alias State = {
+    ui : UIState,
+    rootNode : Tree.Tree Item,
     projectTitle : String,
     selectedId : Int
 }
 
-type alias UIState dModel dAct = {
-    confirmationDialog : Maybe (Dialog dModel dAct),
-    context : Context,
-    lastContext : Context,
+type alias UIState = {
+    dialog : Maybe (Dialog.Dialog Event.Event),
+    context : Context.Context,
+    lastContext : Context.Context,
     lastSelectedId : Int
 }
 
@@ -40,25 +40,25 @@ newItem = {
     expanded = True
     }
 
-emptyModel : State dModel dAct
+emptyModel : State
 emptyModel = {
-    rootNode = T.newNode T.Empty newItem [], 
+    rootNode = Tree.newNode Tree.Empty newItem [], 
     projectTitle = "",
     selectedId = 0,
     ui = emptyUIState
     }
 
-emptyUIState : UIState dModel dAct
+emptyUIState : UIState
 emptyUIState = {
-    confirmationDialog = Nothing,
-    context = Default,
-    lastContext = Default,
+    dialog = Nothing,
+    context = Context.Default,
+    lastContext = Context.Default,
     lastSelectedId = -1
     }
 
 ---- STATE JSON ENCODING / DECODING ----
 
-encodeState : State dModel dAct -> String
+encodeState : State -> String
 encodeState s = let
     encodeItem item = Encoder.object [
             ("title", Encoder.string item.title),
@@ -66,7 +66,7 @@ encodeState s = let
             ("expanded", Encoder.bool item.expanded)
         ]
     
-    encodeTree (T.Node value children id) = 
+    encodeTree (Tree.Node value children id) = 
         Encoder.object [
             ("value", encodeItem value),
             ("children", List.map encodeTree children |> Encoder.list),
@@ -81,7 +81,7 @@ encodeState s = let
         ]
     in Encoder.encode 0 <| encodeState' s
 
-decodeState : String -> Result String (State dModel dAct)
+decodeState : String -> Result String State
 decodeState s = let 
     itemDecoder  = Decoder.object3 Item ("title"    := Decoder.string) 
                                         ("content"  := Decoder.string) 
@@ -92,7 +92,7 @@ decodeState s = let
       Decoder.customDecoder Decoder.value
           (\js -> Decoder.decodeValue (thunk ()) js)
 
-    treeDecoder  = Decoder.object3 T.Node ("value"    := itemDecoder) 
+    treeDecoder  = Decoder.object3 Tree.Node ("value"    := itemDecoder) 
                                           ("children" := Decoder.list (lazy (\_ -> treeDecoder))) 
                                           ("id"       := Decoder.int)
 
