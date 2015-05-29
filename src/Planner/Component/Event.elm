@@ -5,6 +5,7 @@ import Planner.Event exposing (..)
 import Planner.UI.Context as Context
 import Planner.UI.Dialog as Dialog
 import Planner.UI.DialogBuilder as DialogBuilder
+import Planner.Component.Text as Text
 
 newProjectEvent : Event
 newProjectEvent = 
@@ -13,7 +14,7 @@ newProjectEvent =
             Event.Dialog <|
             Dialog.Show  <|
             DialogBuilder.confirm
-                "Are you sure you want to create a new project? Any unsaved progress will be lost."
+                Text.confirmNewProject
                 (Just { emptyEvent | action <- NewProject, setContext <- Just Context.Default })
                 Nothing,
         setContext <- Just Context.Dialog 
@@ -26,7 +27,7 @@ deleteNodeEvent =
             Event.Dialog <|
             Dialog.Show  <|
             DialogBuilder.confirm
-                "Are you sure you want to delete this item and all sub-items?"
+                Text.confirmDeleteNode
                 (Just { emptyEvent | action <- DeleteItem, setContext <- Just Context.Default })
                 Nothing,
         setContext <- Just Context.Dialog 

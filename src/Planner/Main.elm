@@ -6,6 +6,7 @@ import Planner.UI.Context exposing (..)
 import Planner.Update exposing (update)
 import Planner.View as View
 import Planner.Data.Tree as T
+import Planner.Component.Text as Text
 
 import Set
 import String
@@ -79,7 +80,7 @@ port save = let
                 (Signal.filterMap (\keys -> if keys == [17, 83] then Just () else Nothing) () keyboardInput)
             )
                 <| Signal.map (\s -> (,)
-                             (if s.projectTitle == "" then "untitled" else fileName s.projectTitle) 
+                             (if s.projectTitle == "" then Text.untitledSaveTitle else fileName s.projectTitle) 
                              (encodeState s)
                       ) state
         

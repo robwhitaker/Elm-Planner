@@ -8,6 +8,7 @@ import Planner.Data.Tree as T
 import Planner.Event as Event
 import Planner.Event exposing (..)
 import Planner.Component.Event exposing (newProjectEvent, deleteNodeEvent)
+import Planner.Component.Text as Text
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -37,32 +38,32 @@ render address state (w, h) = let
                     { emptyEvent | action <- act }
                 ) << RenameProject),
                 onFocus address { emptyEvent | setContext <- Just Context.TitleInput },
-                placeholder "Untitled Project"
+                placeholder Text.untitledProjectPlaceholderTitle
             ] []
         ],
         div [class "options-bar", onClick address {emptyEvent | setContext <- Just Context.Default } ] [
-            i [class "fa fa-file-text-o icon", onClick address newProjectEvent, alt "New Project (Ctrl+/)", title "New Project (Ctrl+/)"] [],
+            i [class "fa fa-file-text-o icon", onClick address newProjectEvent, alt Text.newProjectButtonAlt, title Text.newProjectButtonAlt] [],
             -- TODO : address was saveFile.address (fix wiring later)
-            i [class "fa fa-download icon", onClick address { emptyEvent | action <- SaveProject }, alt "Save Project  (Ctrl+S)", title "Save Project (Ctrl+S)"] [],
+            i [class "fa fa-download icon", onClick address { emptyEvent | action <- SaveProject }, alt Text.saveProjectButtonAlt, title Text.saveProjectButtonAlt] [],
             label [for "loadButton"] [
                 Html.form [id "loadWrapperForm"] [ 
                     input  [type' "file", id "loadButton"] [text "Load"],
-                    i [class "fa fa-upload icon", alt "Load Project (Ctrl+O)", title "Load Project (Ctrl+O)"] []
+                    i [class "fa fa-upload icon", alt Text.loadProjectButtonAlt, title Text.loadProjectButtonAlt] []
                 ]
             ],
             div [class "divider"] [],
-            i [class "fa fa-plus-square-o icon", onClick address { emptyEvent | action <- NewItem, setContext <- Just Context.Default }, alt "New Node (Ctrl+Return)", title "New Node (Ctrl+Return)" ] [], 
-            i [class "fa fa-pencil icon", onClick address { emptyEvent | action <- RenamingItem Nothing }, alt "Rename Node (Return)", title "Rename Node (Return)"] [],
-            i [class "fa fa-arrows-v icon", onClick address { emptyEvent | action <- ToggleExpanded Nothing }, alt "Toggle Expanded (Space)", title "Toggle Expanded (Space)"] [],
-            i [class "fa fa-trash-o icon", onClick address deleteNodeEvent, alt "Delete Node (Del)", title "Delete Node (Del)" ] [], 
+            i [class "fa fa-plus-square-o icon", onClick address { emptyEvent | action <- NewItem, setContext <- Just Context.Default }, alt Text.newNodeButtonAlt, title Text.newNodeButtonAlt ] [], 
+            i [class "fa fa-pencil icon", onClick address { emptyEvent | action <- RenamingItem Nothing }, alt Text.renameNodeButtonAlt, title Text.renameNodeButtonAlt] [],
+            i [class "fa fa-arrows-v icon", onClick address { emptyEvent | action <- ToggleExpanded Nothing }, alt Text.toggleExpandedButtonAlt, title Text.toggleExpandedButtonAlt] [],
+            i [class "fa fa-trash-o icon", onClick address deleteNodeEvent, alt Text.deleteNodeButtonAlt, title Text.deleteNodeButtonAlt ] [], 
             div [class "divider"] [],
-            i [class "fa fa-arrow-left icon", onClick address { emptyEvent | action <- MoveNode T.Lift, setContext <- Just Context.Default }, alt "Move Left (Ctrl+Left)", title "Move Left (Ctrl+Left)" ] [], 
-            i [class "fa fa-arrow-up icon", onClick address { emptyEvent | action <- MoveNode T.ShiftUp, setContext <- Just Context.Default }, alt "Move Up (Ctrl+Up)", title "Move Up (Ctrl+Up)" ] [], 
-            i [class "fa fa-arrow-down icon", onClick address { emptyEvent | action <- MoveNode T.ShiftDown, setContext <- Just Context.Default }, alt "Move Down (Ctrl+Down)", title "Move Down (Ctrl+Down)" ] [], 
-            i [class "fa fa-arrow-right icon", onClick address { emptyEvent | action <- MoveNode T.Lower, setContext <- Just Context.Default }, alt "Move Right (Ctrl+Right)", title "Move Right (Ctrl+Right)" ] [],
+            i [class "fa fa-arrow-left icon", onClick address { emptyEvent | action <- MoveNode T.Lift, setContext <- Just Context.Default }, alt Text.moveNodeLeftButtonAlt, title Text.moveNodeLeftButtonAlt ] [], 
+            i [class "fa fa-arrow-up icon", onClick address { emptyEvent | action <- MoveNode T.ShiftUp, setContext <- Just Context.Default }, alt Text.moveNodeUpButtonAlt, title Text.moveNodeUpButtonAlt ] [], 
+            i [class "fa fa-arrow-down icon", onClick address { emptyEvent | action <- MoveNode T.ShiftDown, setContext <- Just Context.Default }, alt Text.moveNodeDownButtonAlt, title Text.moveNodeDownButtonAlt ] [], 
+            i [class "fa fa-arrow-right icon", onClick address { emptyEvent | action <- MoveNode T.Lower, setContext <- Just Context.Default }, alt Text.moveNodeRightButtonAlt, title Text.moveNodeRightButtonAlt ] [],
             div [class "divider"] [],
-            i [class "fa fa-caret-square-o-up icon", onClick address { emptyEvent | action <- SetAllExpanded False, setContext <- Just Context.Default }, alt "Collapse All", title "Collapse All" ] [],
-            i [class "fa fa-caret-square-o-down icon", onClick address { emptyEvent | action <- SetAllExpanded True, setContext <- Just Context.Default }, alt "Expand All", title "Expand All" ] []
+            i [class "fa fa-caret-square-o-up icon", onClick address { emptyEvent | action <- SetAllExpanded False, setContext <- Just Context.Default }, alt Text.collapseAllButtonAlt, title Text.collapseAllButtonAlt ] [],
+            i [class "fa fa-caret-square-o-down icon", onClick address { emptyEvent | action <- SetAllExpanded True, setContext <- Just Context.Default }, alt Text.expandAllButtonAlt, title Text.expandAllButtonAlt ] []
         ],
         div [
             class "main-container",
@@ -78,7 +79,7 @@ render address state (w, h) = let
                 ] [
                     textarea [
                         id "textbox",
-                        placeholder "...",
+                        placeholder Text.emptyTextAreaPlaceholder,
                         on "input" targetValue (Signal.message address << (\act -> 
                             { emptyEvent | action <- act }
                         ) << UpdateItem),
@@ -88,10 +89,7 @@ render address state (w, h) = let
             ]
         ],
         footer [] [
-            Markdown.toHtml """ Created by <a href="http://robertjwhitaker.com" target="_blank">Robert J. Whitaker</a>
-
-*This project was programmed in <a href="http://elm-lang.org" target="_blank">Elm</a>. Check out the <a href="https://github.com/robwhitaker/Elm-Tree-Planner" target="_blank">source</a>.*
-"""
+            Markdown.toHtml Text.footerText
         ]
     ]
 

@@ -4,6 +4,7 @@ import Planner.Event as Event
 import Planner.Data.Tree as Tree
 import Planner.UI.Context as Context
 import Planner.UI.Dialog as Dialog
+import Planner.Component.Text as Text
 
 import Json.Decode as Decoder
 import Json.Decode exposing ((:=))
@@ -35,7 +36,7 @@ type alias Item = {
 
 newItem : Item 
 newItem = {
-    title = "new",
+    title = Text.newItemTitle,
     content = "",
     expanded = True
     }
