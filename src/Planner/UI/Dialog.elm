@@ -12,8 +12,9 @@ type alias Dialog event = {
     keyboardInputMap : List Int -> Model event -> event
 }
 
-type Model event = 
-    ConfirmDialog { query : String, confirm : event, cancel : event, selectedOption : Int }
+type Model event 
+    = ConfirmDialog { query : String, confirm : event, cancel : event, selectedOption : Int }
+    | KeyboardShortcutDialog { keyMap : List (String, String) }
 
 type Action event
     = Show (Maybe (Dialog event))

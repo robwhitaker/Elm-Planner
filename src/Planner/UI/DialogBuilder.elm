@@ -4,11 +4,13 @@ import Planner.UI.Dialog as Dialog
 import Planner.Event as Event
 import Planner.Event exposing (emptyEvent)
 import Planner.UI.Context as Context
+import Planner.Component.Text as Text
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Maybe
+import List 
 
 ---- CONFIRM DIALOG ----
 
@@ -30,6 +32,40 @@ confirm query confirm cancel = let
             cancel <- Maybe.withDefault model.cancel cancel
         }
 
+---- KEYBOARD SHORTCUT DIALOG ----
+
+keyboardShortcutDialogModel : Dialog.Model Event.Event
+keyboardShortcutDialogModel = Dialog.KeyboardShortcutDialog {
+        keyMap = [
+                ("FILE", ""),
+                Text.newProjectShortcut,
+                Text.saveProjectShortcut,
+                Text.loadProjectShortcut, 
+
+                ("NODE OPERATIONS", ""),
+                Text.newNodeShortcut,
+                Text.renameNodeShortcut,
+                Text.toggleExpandedShortcut,
+                Text.deleteNodeShortcut,
+
+                ("NODE MOVEMENT", ""),
+                Text.moveNodeLeftShortcut,
+                Text.moveNodeUpShortcut,
+                Text.moveNodeDownShortcut,
+                Text.moveNodeRightShortcut,
+
+                ("SELECTION MOVEMENT", ""),
+                Text.moveSelectionUpShortcut,
+                Text.moveSelectionDownShortcut,
+
+                ("CHANGING FOCUS", ""),
+                Text.editTitleShortcut,
+                Text.toggleFocusShortcut,
+
+                ("HELP MENU", ""),
+                Text.showHelpShortcut
+            ]
+    }
 ---- DIALOG CREATION ----
 
 createDialog : Dialog.Model Event.Event -> Maybe (Dialog.Dialog Event.Event) 
@@ -52,7 +88,7 @@ createDialog model =
                         onClick address m'.cancel
                     ] [],
                     div [
-                        class "confirm-dialog",
+                        class "dialog",
                         style [("top", toString (h//2 - 167) ++ "px"), ("left", toString (w//2 - 257) ++ "px")]
                     ] [
                         h2 [] [text m'.query],
@@ -80,4 +116,39 @@ createDialog model =
                     [39]     -> { emptyEvent | action <- Event.Dialog (Dialog.Custom (Dialog.ChangeSelection 1)) }
                     _        -> emptyEvent
             }
+
+        Dialog.KeyboardShortcutDialog m -> Just {
+            model = model,
+
+            update action dialModel = dialModel,
+
+            keyboardInputMap keypresses dialModel = 
+                case keypresses of
+                    [27] -> { emptyEvent | action <- Event.Dialog Dialog.Hide, setContext <- Just Context.Default }
+                    [72] -> { emptyEvent | action <- Event.Dialog Dialog.Hide, setContext <- Just Context.Default }
+                    _ -> emptyEvent,
+
+            view (w,h) address dialModel =
+                let (Dialog.KeyboardShortcutDialog m') = dialModel
+                in div [] [
+                    div [
+                        class "modal-background",
+                        onClick address { emptyEvent | action <- Event.Dialog Dialog.Hide, setContext <- Just Context.Default }
+                    ] [],
+                    div [
+                        class "dialog keyboard-shortcuts",
+                        style [("top", toString ((toFloat h * 0.5) - (toFloat h * 0.8)/2) ++ "px"), ("left", toString (w//2 - 250) ++ "px"), ("height", toString (toFloat h * 0.8) ++ "px")]
+                    ] [
+                        ul [] <|
+                            List.foldr (\(actionStr, keyStr) acc -> let
+                                    color = (List.length acc) % 2
+                                    tag = if keyStr == "" 
+                                          then li [class "heading"] [h4 [] [text actionStr]] 
+                                          else li [class <| "color-" ++ toString color] [div [class "left-side"] [text actionStr], div [class "right-side"] [text keyStr]]
+                                    in tag :: acc
+                                ) [] m'.keyMap
+                    ]
+                ]
+            }
+
         _ -> Nothing 

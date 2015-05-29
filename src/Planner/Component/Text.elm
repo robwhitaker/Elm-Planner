@@ -12,33 +12,71 @@ confirmLoadProject = "Are you sure you want to load a new project? Any unsaved p
 
 newItemTitle = "new"
 
+---- KEYBOARD SHORTCUTS ----
+
+newProjectShortcut = ("New Project", "Ctrl+/")
+
+saveProjectShortcut = ("Save Project", "Ctrl+S")
+
+loadProjectShortcut = ("Load Project", "Ctrl+O")
+
+newNodeShortcut = ("New Node", "Ctrl+Return")
+
+renameNodeShortcut = ("Rename Node", "Return")
+
+toggleExpandedShortcut = ("Toggle Expanded", "Space")
+
+deleteNodeShortcut = ("Delete Node", "Del")
+
+moveNodeLeftShortcut = ("Move Node Left", "Ctrl+LeftArrow")
+
+moveNodeUpShortcut = ("Move Node Up", "Ctrl+UpArrow")
+
+moveNodeDownShortcut = ("Move Node Down", "Ctrl+DownArrow")
+
+moveNodeRightShortcut = ("Move Node Right", "Ctrl+RightArrow")
+
+moveSelectionUpShortcut = ("Move Selection Up", "UpArrow")
+
+moveSelectionDownShortcut = ("Move Selection Down", "DownArrow")
+
+editTitleShortcut = ("Focus Title", "Esc")
+
+toggleFocusShortcut = ("Change Focus", "Tab")
+
+showHelpShortcut = ("Show Keyboard Shortcuts", "h")
+
 ---- BUTTON ALT TEXT ----
 
-newProjectButtonAlt = "New Project (Ctrl+/)"
+scToAlt (actionStr, keyStr) = actionStr ++ " (" ++ keyStr ++ ")" 
 
-saveProjectButtonAlt = "Save Project (Ctrl+S)"
+newProjectButtonAlt = scToAlt newProjectShortcut
 
-loadProjectButtonAlt = "Load Project (Ctrl+O)"
+saveProjectButtonAlt = scToAlt saveProjectShortcut
 
-newNodeButtonAlt = "New Node (Ctrl+Return)"
+loadProjectButtonAlt = scToAlt loadProjectShortcut
 
-renameNodeButtonAlt = "Rename Node (Return)"
+newNodeButtonAlt = scToAlt newNodeShortcut
 
-toggleExpandedButtonAlt = "Toggle Expanded (Space)"
+renameNodeButtonAlt = scToAlt renameNodeShortcut
 
-deleteNodeButtonAlt = "Delete Node (Del)"
+toggleExpandedButtonAlt = scToAlt toggleExpandedShortcut
 
-moveNodeLeftButtonAlt = "Move Left (Ctrl+Left)"
+deleteNodeButtonAlt = scToAlt deleteNodeShortcut
 
-moveNodeUpButtonAlt = "Move Up (Ctrl+Up)"
+moveNodeLeftButtonAlt = scToAlt moveNodeLeftShortcut
 
-moveNodeDownButtonAlt = "Move Down (Ctrl+Down)"
+moveNodeUpButtonAlt = scToAlt moveNodeUpShortcut
 
-moveNodeRightButtonAlt = "Move Right (Ctrl+Right)"
+moveNodeDownButtonAlt = scToAlt moveNodeDownShortcut
+
+moveNodeRightButtonAlt = scToAlt moveNodeRightShortcut
 
 collapseAllButtonAlt = "Collapse All"
 
 expandAllButtonAlt = "Expand All"
+
+showHelpButtonAlt = scToAlt showHelpShortcut
 
 ---- MISC ----
 

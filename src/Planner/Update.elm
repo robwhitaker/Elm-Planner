@@ -6,7 +6,7 @@ import Planner.UI.Context as Context
 import Planner.UI.Context exposing (..)
 import Planner.Event as Event
 import Planner.Event exposing (..)
-import Planner.Component.Event exposing (newProjectEvent, deleteNodeEvent)
+import Planner.Component.Event exposing (newProjectEvent, deleteNodeEvent, showHelpEvent)
 import Planner.UI.Dialog as Dialog
 import Planner.UI.DialogBuilder as DialogBuilder
 import Util.List exposing (takeWhile, dropWhile)
@@ -135,6 +135,7 @@ keyPressesToEvent keypresses state = case keypresses of
             [40]     -> { emptyEvent | action <- MoveSelection Down }
             [27]     -> { emptyEvent | setContext <- Just TitleInput }
             [9]      -> { emptyEvent | setContext <- Just MainTextArea }
+            [72]     -> showHelpEvent
             _        -> emptyEvent
 
         Context.Dialog ->

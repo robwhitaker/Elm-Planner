@@ -45,3 +45,13 @@ loadProjectEvent event =
                         Nothing,
         setContext <- Just Context.Dialog
     }
+
+showHelpEvent : Event
+showHelpEvent = 
+    { emptyEvent |
+        action <-
+            Event.Dialog <|
+                Dialog.Show  <|
+                    DialogBuilder.createDialog DialogBuilder.keyboardShortcutDialogModel,
+        setContext <- Just Context.Dialog 
+    }

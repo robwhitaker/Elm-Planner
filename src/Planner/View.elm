@@ -7,7 +7,7 @@ import Planner.Data.Tree exposing (Tree)
 import Planner.Data.Tree as T
 import Planner.Event as Event
 import Planner.Event exposing (..)
-import Planner.Component.Event exposing (newProjectEvent, deleteNodeEvent)
+import Planner.Component.Event exposing (newProjectEvent, deleteNodeEvent, showHelpEvent)
 import Planner.Component.Text as Text
 
 import Html exposing (..)
@@ -43,7 +43,6 @@ render address state (w, h) = let
         ],
         div [class "options-bar", onClick address {emptyEvent | setContext <- Just Context.Default } ] [
             i [class "fa fa-file-text-o icon", onClick address newProjectEvent, alt Text.newProjectButtonAlt, title Text.newProjectButtonAlt] [],
-            -- TODO : address was saveFile.address (fix wiring later)
             i [class "fa fa-download icon", onClick address { emptyEvent | action <- SaveProject }, alt Text.saveProjectButtonAlt, title Text.saveProjectButtonAlt] [],
             label [for "loadButton"] [
                 Html.form [id "loadWrapperForm"] [ 
@@ -63,7 +62,8 @@ render address state (w, h) = let
             i [class "fa fa-arrow-right icon", onClick address { emptyEvent | action <- MoveNode T.Lower, setContext <- Just Context.Default }, alt Text.moveNodeRightButtonAlt, title Text.moveNodeRightButtonAlt ] [],
             div [class "divider"] [],
             i [class "fa fa-caret-square-o-up icon", onClick address { emptyEvent | action <- SetAllExpanded False, setContext <- Just Context.Default }, alt Text.collapseAllButtonAlt, title Text.collapseAllButtonAlt ] [],
-            i [class "fa fa-caret-square-o-down icon", onClick address { emptyEvent | action <- SetAllExpanded True, setContext <- Just Context.Default }, alt Text.expandAllButtonAlt, title Text.expandAllButtonAlt ] []
+            i [class "fa fa-caret-square-o-down icon", onClick address { emptyEvent | action <- SetAllExpanded True, setContext <- Just Context.Default }, alt Text.expandAllButtonAlt, title Text.expandAllButtonAlt ] [],
+            i [class "fa fa-question-circle icon", style [("float","right")], onClick address showHelpEvent, alt Text.showHelpButtonAlt, title Text.showHelpButtonAlt] []
         ],
         div [
             class "main-container",
