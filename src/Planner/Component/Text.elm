@@ -6,6 +6,8 @@ confirmNewProject = "Are you sure you want to create a new project? Any unsaved 
 
 confirmDeleteNode = "Are you sure you want to delete this item and all sub-items?"
 
+confirmLoadProject = "Are you sure you want to load a new project? Any unsaved progress will be lost."
+
 ---- NEW MODEL TEXT ----
 
 newItemTitle = "new"

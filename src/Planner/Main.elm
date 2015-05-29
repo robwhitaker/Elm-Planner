@@ -2,6 +2,7 @@ module Planner.Main where
 
 import Planner.Model exposing (..)
 import Planner.Event exposing (..)
+import Planner.Component.Event exposing (loadProjectEvent)
 import Planner.UI.Context exposing (..)
 import Planner.Update exposing (update)
 import Planner.View as View
@@ -37,7 +38,7 @@ keyboardInput : Signal (List Int)
 keyboardInput = Set.toList <~ Signal.dropRepeats Keyboard.keysDown 
 
 load : Signal Event
-load = (\json -> { emptyEvent | action <- LoadProject json }) <~ fileUpload
+load = (\json -> loadProjectEvent { emptyEvent | action <- LoadProject json }) <~ fileUpload
 
 inputEvent : Signal Input
 inputEvent = Signal.mergeMany [UIEvent <~ uiEvent.signal, KeyboardEvent <~ keyboardInput, UIEvent <~ load]

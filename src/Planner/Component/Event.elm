@@ -12,11 +12,11 @@ newProjectEvent =
     { emptyEvent |
         action <-
             Event.Dialog <|
-            Dialog.Show  <|
-            DialogBuilder.confirm
-                Text.confirmNewProject
-                (Just { emptyEvent | action <- NewProject, setContext <- Just Context.Default })
-                Nothing,
+                Dialog.Show  <|
+                    DialogBuilder.confirm
+                        Text.confirmNewProject
+                        (Just { emptyEvent | action <- NewProject, setContext <- Just Context.Default })
+                        Nothing,
         setContext <- Just Context.Dialog 
     }
 
@@ -25,10 +25,23 @@ deleteNodeEvent =
     { emptyEvent |
         action <-
             Event.Dialog <|
-            Dialog.Show  <|
-            DialogBuilder.confirm
-                Text.confirmDeleteNode
-                (Just { emptyEvent | action <- DeleteItem, setContext <- Just Context.Default })
-                Nothing,
+                Dialog.Show  <|
+                    DialogBuilder.confirm
+                        Text.confirmDeleteNode
+                        (Just { emptyEvent | action <- DeleteItem, setContext <- Just Context.Default })
+                        Nothing,
         setContext <- Just Context.Dialog 
+    }
+
+loadProjectEvent : Event -> Event
+loadProjectEvent event = 
+    { emptyEvent | 
+        action <-
+            Event.Dialog <|
+                Dialog.Show  <|
+                    DialogBuilder.confirm
+                        Text.confirmLoadProject
+                        (Just { event | setContext <- Just Context.Default })
+                        Nothing,
+        setContext <- Just Context.Dialog
     }
